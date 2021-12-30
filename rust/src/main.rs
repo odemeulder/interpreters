@@ -1,4 +1,5 @@
 use std::io;
+use std::collections::HashMap;
 
 // Note: to debug:
 // println!("token {:#?}", token);
@@ -17,6 +18,12 @@ enum TokenType {
   Lparen,
   Rparen,
   Eof,
+  Begin,
+  End,
+  Assign,
+  Semi,
+  Dot,
+  Id,
 }
 
 #[derive(Clone, Debug)]
@@ -60,6 +67,35 @@ impl Lexer {
       self.current_char = None;
     } else {
       self.current_char = Some(self.text.chars().nth(self.pos).unwrap());
+    }
+  }
+
+  fn peek(&mut self) -> Option<char> {
+    let peek_pos = self.pos + 1;
+    if peek_pos > self.text.chars().count() - 1 {
+      return None;
+    } else {
+      return Some(self.text.chars().nth(peek_pos).unwrap());
+    }
+  }
+
+  fn _id(&mut self) -> Token {
+    let mut reserved_keywords: HashMap<String, Token> = HashMap::new();
+    reserved_keywords.insert(String::from("BEGIN"), build_token(TokenType::Begin, Some(String::from("BEGIN"))));
+    reserved_keywords.insert(String::from("END"), build_token(TokenType::Begin, Some(String::from("END"))));
+    let mut result = String::default();
+    loop {
+      match self.current_char {
+        Some(c) if c.is_alphanumeric() => {
+          result.push(c);
+          self.advance();
+        },
+        _ => break,
+      }
+    }
+    return match reserved_keywords.get(&result) {
+      None => build_token(TokenType::Id, Some(result)),
+      Some(token) => token.clone()
     }
   }
 
@@ -116,6 +152,24 @@ impl Lexer {
           self.advance(); 
           return build_token(TokenType::Rparen, Some(String::from(')')))
         },
+        Some(c) if c.is_alphanumeric() => {
+          return self._id(); 
+        },
+        Some(c) if c == ':' => {
+          if let Some('=') = &self.peek() {
+            self.advance(); 
+            self.advance();
+            return build_token(TokenType::Assign, Some(String::from(":=")))  
+          }
+        },
+        Some(c) if c == ';' => {
+          self.advance(); 
+          return build_token(TokenType::Semi, Some(String::from(';')))
+        },
+        Some(c) if c == '.' => {
+          self.advance(); 
+          return build_token(TokenType::Dot, Some(String::from('.')))
+        },
         _ => self.error()
       }
     }
@@ -125,6 +179,19 @@ impl Lexer {
 //               P A R S E R
 //--------------------------------------------------------------------
 
+// AST nodes
+enum AST {
+  BinOp(BinOp),
+  Num(Num),
+  UnaryOp(UnaryOp),
+}
+
+impl AstNode for AST {
+  fn visit_node(self: &AST) -> i32 {
+    return self.visit_node();
+  }
+}
+
 struct BinOp {
   token: Token,
   left: Box<dyn AstNode>,
@@ -133,8 +200,26 @@ struct BinOp {
 struct Num {
   value: Option<String>
 }
+struct UnaryOp {
+  token: Token,
+  expr: Box<dyn AstNode>,
+}
+struct Compound {
+  children: Vec<Box<dyn AstNode>>,
+  children2: Vec<AST>
+}
+struct Assign {
+  token: Token,
+  left: Box<dyn AstNode>,
+  right: Box<dyn AstNode>,
+}
+struct Var {
+  token: Token,
+  value: Option<String>
+}
+struct NoOp;
 
-
+// Parser
 #[derive(Debug)]
 struct Parser {
   lexer: Lexer,
@@ -147,7 +232,9 @@ fn build_parser(lexer: Lexer) -> Parser {
     current_token: None
   }
 }
+
 impl Parser {
+
   fn error(&self) ->() {
     panic!("Error parsing input")
   }
@@ -159,7 +246,37 @@ impl Parser {
     }
   }
 
+
   fn factor(&mut self) -> Box<dyn AstNode> {
+    match &self.current_token {
+      None => self.error(),
+      Some(token) => {
+        let _token = token.clone();
+        match &token.token_type {
+          TokenType::Plus | TokenType::Minus => {
+            self.eat(_token.token_type);
+            return Box::new(UnaryOp {
+              token: _token,
+              expr: self.factor()
+            })
+          },
+          TokenType::Integer => {
+            let _token = token.clone();
+            self.eat(TokenType::Integer);
+            return Box::new(Num {
+              value: _token.value
+            })
+          },
+          TokenType::Lparen => {
+            self.eat(TokenType::Lparen);
+            let node = self.expr();
+            self.eat(TokenType::Rparen);
+            return node;            
+          },
+          _ => ()
+        }
+      }
+    }
     match &self.current_token {
       Some(token) if token.token_type == TokenType::Integer => {
         let _token = token.clone();
@@ -179,9 +296,7 @@ impl Parser {
   }
 
   fn term(&mut self) -> Box<dyn AstNode> {
-    
     let mut node = self.factor();
-
     loop {
       match &self.current_token {
         None => break,
@@ -209,7 +324,7 @@ impl Parser {
       None => self.current_token = Some(self.lexer.get_next_token()),
       _ => ()
     }
-    // 
+    // Begin
     let mut node = self.term();
     loop {
       match &self.current_token {
@@ -242,29 +357,39 @@ impl Parser {
 //--------------------------------------------------------------------
 
 trait AstNode {
-  fn visit_node(&self) -> u32;
+  fn visit_node(&self) -> i32;
 }
 
 impl AstNode for BinOp {
-  fn visit_node(&self) -> u32 {
+  fn visit_node(&self) -> i32 {
     match self.token.token_type {
       TokenType::Plus  => self.left.visit_node() + self.right.visit_node(),
       TokenType::Minus => self.left.visit_node() - self.right.visit_node(),
       TokenType::Mul   => self.left.visit_node() * self.right.visit_node(),
       TokenType::Div   => self.left.visit_node() / self.right.visit_node(),
-      _ => 99999,
+      _ => panic!("Unexpected token"),
     }
   }
 }
 
 impl AstNode for Num {
-  fn visit_node(&self) -> u32 {
+  fn visit_node(&self) -> i32 {
     return match &self.value {
-      None => 99999,
-      Some(v) => match v.parse::<u32>() {
+      None => panic!("Invalid node"),
+      Some(v) => match v.parse::<i32>() {
         Ok(n) => n,
-        Err(_) => 99999
+        Err(_) => panic!("Cannot convert token to int")
       }
+    }
+  }
+}
+
+impl AstNode for UnaryOp {
+  fn visit_node(&self) -> i32 {
+    match self.token.token_type {
+      TokenType::Plus  => self.expr.visit_node(),
+      TokenType::Minus => -self.expr.visit_node(),
+      _ => panic!("Invalid unary operator")
     }
   }
 }
@@ -281,7 +406,7 @@ fn build_interpreter(parser: Parser) -> Interpreter {
 }
 
 impl Interpreter {
-  fn interpret(&mut self) -> u32 {
+  fn interpret(&mut self) -> i32 {
     let tree = &self.parser.parse();
     return tree.visit_node();
   }
