@@ -1,8 +1,17 @@
-use std::io;
+#[macro_use]
+extern crate lazy_static;
+
+// use std::io;
+use std::fs;
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 // Note: to debug:
 // println!("token {:#?}", token);
+
+lazy_static! {
+  static ref GLOBAL_SCOPE: Mutex<HashMap<String, Option<i32>>> = Mutex::new(HashMap::new());
+}
 
 //--------------------------------------------------------------------
 //               L E X E R
@@ -180,17 +189,17 @@ impl Lexer {
 //--------------------------------------------------------------------
 
 // AST nodes
-enum AST {
-  BinOp(BinOp),
-  Num(Num),
-  UnaryOp(UnaryOp),
-}
+// enum AST {
+//   BinOp(BinOp),
+//   Num(Num),
+//   UnaryOp(UnaryOp),
+// }
 
-impl AstNode for AST {
-  fn visit_node(self: &AST) -> i32 {
-    return self.visit_node();
-  }
-}
+// impl AstNode for AST {
+//   fn visit_node(self: &AST) -> i32 {
+//     return self.visit_node();
+//   }
+// }
 
 struct BinOp {
   token: Token,
@@ -205,17 +214,14 @@ struct UnaryOp {
   expr: Box<dyn AstNode>,
 }
 struct Compound {
-  children: Vec<Box<dyn AstNode>>,
-  children2: Vec<AST>
+  children: Vec<Box<dyn AstNode>>
 }
 struct Assign {
-  token: Token,
-  left: Box<dyn AstNode>,
+  left: String,
   right: Box<dyn AstNode>,
 }
 struct Var {
-  token: Token,
-  value: Option<String>
+  value: String
 }
 struct NoOp;
 
@@ -240,14 +246,19 @@ impl Parser {
   }
 
   fn eat(&mut self, _token_type: TokenType) -> () {
+    // println!("token {:#?}", &self.current_token);
     match &self.current_token {
       Some(Token { token_type: _token_type, ..}) => self.current_token = Some(self.lexer.get_next_token()),
       _ => self.error(),
     }
   }
 
-
   fn factor(&mut self) -> Box<dyn AstNode> {
+    // factor : PLUS  factor
+    // | MINUS factor
+    // | INTEGER
+    // | LPAREN expr RPAREN
+    // | variable
     match &self.current_token {
       None => self.error(),
       Some(token) => {
@@ -273,7 +284,7 @@ impl Parser {
             self.eat(TokenType::Rparen);
             return node;            
           },
-          _ => ()
+          _ => return self.variable()
         }
       }
     }
@@ -319,11 +330,7 @@ impl Parser {
   }
 
   fn expr(&mut self) -> Box<dyn AstNode> {
-    // If this is the the initial run, the current_token is None
-    match self.current_token {
-      None => self.current_token = Some(self.lexer.get_next_token()),
-      _ => ()
-    }
+
     // Begin
     let mut node = self.term();
     loop {
@@ -347,8 +354,103 @@ impl Parser {
     return node;
   }
 
+  fn program(&mut self) -> Box<dyn AstNode> {
+    // If this is the the initial run, the current_token is None
+    match self.current_token {
+      None => self.current_token = Some(self.lexer.get_next_token()),
+      _ => ()
+    }
+    // program : compound_statement DOT"
+    let node = self.compound_statement();
+    self.eat(TokenType::Dot);
+    return node;
+  }
+
+  fn compound_statement(&mut self) -> Box<dyn AstNode> {
+    // compound_statement: BEGIN statement_list END
+    self.eat(TokenType::Begin);
+    let statements = self.statement_list();
+    self.eat(TokenType::End);
+    return Box::new( Compound{ children: statements});
+  }
+
+  fn statement_list(&mut self) -> Vec<Box<dyn AstNode>> {
+    // statement_list : statement
+    //                | statement SEMI statement_list
+    let node = self.statement();
+    let mut results = vec![node];
+    loop {
+      match &self.current_token {
+        None => break,
+        Some(token) => {
+          match token.token_type {
+            TokenType::Semi => {
+              self.eat(TokenType::Semi);
+              results.push(self.statement())
+            },
+            _ => break
+          }
+        }
+      }
+    }
+    return results;
+  }
+
+  fn statement(&mut self) -> Box<dyn AstNode> {
+    // statement : compound_statement
+    //           | assignment_statement
+    //           | empty
+    match &self.current_token {
+      Some(token) => {
+        let _token = token.clone();
+        match token.token_type {
+          TokenType::Begin => self.compound_statement(),
+          TokenType::Id => self.assignment_statement(),
+          _ => self.empty()
+        }
+      }
+      None => self.empty()
+    }
+  }
+
+  fn assignment_statement(&mut self) -> Box<dyn AstNode> {
+    let variable = self.variable();
+    let _token = self.current_token.clone();
+    self.eat(TokenType::Assign);
+    let right = self.expr();
+    match _token {
+      None => Box::new(NoOp),
+      Some(_) => Box::new(Assign {
+        left: variable.value,
+        right: right
+      })
+    }
+  }
+
+  fn variable(&mut self) -> Box<Var> {
+    let node: Box<Var>;
+    if let Some(token) = &self.current_token {
+      let _val = token.clone().value;
+      node = Box::new(Var {
+        value: _val.unwrap()      
+      });
+      self.eat(TokenType::Id);
+      return node;
+    }
+    panic!("Unable to assign variable");
+  }
+
+  fn empty(&mut self) -> Box<dyn AstNode> {
+    Box::new(NoOp {})
+  }
+
   fn parse(&mut self) -> Box<dyn AstNode> {
-    return self.expr()
+    let node = self.program();
+    match &self.current_token {
+      Some(token) if token.token_type == TokenType::Eof => {},
+      _ => self.error()
+    }
+    return node;
   }
 }
 
@@ -357,27 +459,31 @@ impl Parser {
 //--------------------------------------------------------------------
 
 trait AstNode {
-  fn visit_node(&self) -> i32;
+  fn visit_node(&self) -> Option<i32>;
 }
 
 impl AstNode for BinOp {
-  fn visit_node(&self) -> i32 {
-    match self.token.token_type {
-      TokenType::Plus  => self.left.visit_node() + self.right.visit_node(),
-      TokenType::Minus => self.left.visit_node() - self.right.visit_node(),
-      TokenType::Mul   => self.left.visit_node() * self.right.visit_node(),
-      TokenType::Div   => self.left.visit_node() / self.right.visit_node(),
-      _ => panic!("Unexpected token"),
+  fn visit_node(&self) -> Option<i32> {
+    match (self.left.visit_node(), self.right.visit_node()) {
+      (Some(l), Some(r)) => match self.token.token_type {
+                              TokenType::Plus  => Some(l+r),
+                              TokenType::Minus => Some(l-r),
+                              TokenType::Mul   => Some(l*r),
+                              TokenType::Div   => Some(l/r),
+                              _ => panic!("Unexpected token"),
+                            }
+      _ => panic!("Unexpected token")
     }
+
   }
 }
 
 impl AstNode for Num {
-  fn visit_node(&self) -> i32 {
+  fn visit_node(&self) -> Option<i32> {
     return match &self.value {
       None => panic!("Invalid node"),
       Some(v) => match v.parse::<i32>() {
-        Ok(n) => n,
+        Ok(n) => Some(n),
         Err(_) => panic!("Cannot convert token to int")
       }
     }
@@ -385,12 +491,52 @@ impl AstNode for Num {
 }
 
 impl AstNode for UnaryOp {
-  fn visit_node(&self) -> i32 {
-    match self.token.token_type {
-      TokenType::Plus  => self.expr.visit_node(),
-      TokenType::Minus => -self.expr.visit_node(),
-      _ => panic!("Invalid unary operator")
+  fn visit_node(&self) -> Option<i32> {
+    match self.expr.visit_node() {
+      None => None,
+      Some(i) => match self.token.token_type {
+        TokenType::Plus  => Some(i),
+        TokenType::Minus => Some(-i),
+        _ => panic!("Invalid unary operator")
+      }
     }
+  }
+}
+
+impl AstNode for Compound {
+  fn visit_node(&self) -> Option<i32> {
+    for statement in &self.children {
+      statement.visit_node();
+    }
+    return None;
+  }
+}
+
+impl AstNode for Assign {
+  fn visit_node(&self) -> Option<i32> {
+    let var_name = &self.left;
+    let right = self.right.visit_node();
+    let mut guard = GLOBAL_SCOPE.lock().unwrap();
+    guard.insert(var_name.to_string(), right);
+    None 
+  }
+}
+
+impl AstNode for Var {
+  fn visit_node(&self) -> Option<i32> {
+    let var_name = &self.value;
+    let map =  GLOBAL_SCOPE.lock().unwrap();
+    let x = match map.get(var_name) {
+      None => None,
+      Some(v) => *v
+    };
+    return x;
+  }
+}
+
+impl AstNode for NoOp {
+  fn visit_node(&self) -> Option<i32> {
+    None 
   }
 }
 
@@ -406,7 +552,7 @@ fn build_interpreter(parser: Parser) -> Interpreter {
 }
 
 impl Interpreter {
-  fn interpret(&mut self) -> i32 {
+  fn interpret(&mut self) -> Option<i32> {
     let tree = &self.parser.parse();
     return tree.visit_node();
   }
@@ -416,18 +562,32 @@ impl Interpreter {
 //               M A I N
 //--------------------------------------------------------------------
 
-fn main() {
-  println!("ODM Interpreter");
-  loop {
-    let mut progr = String::new();
-    io::stdin()
-        .read_line(&mut progr)
-        .expect("Failed to read line");
-    println!("Program: {}", &progr);
-    let lexer = build_lexer(progr);
-    let parser = build_parser(lexer);
-    let mut interpreter = build_interpreter(parser);
-    let result = interpreter.interpret();
-    println!("Result: {}", result);  
+fn insert() {
+  GLOBAL_SCOPE.lock().unwrap().insert(String::from("olivier"), Some(48));
+}
+
+fn retrieve() -> Option<i32> {
+  let map = GLOBAL_SCOPE.lock().unwrap();
+  let result = map.get("olivier");
+  println!("Result {:#?}", result);
+  if let Some(i) = result {
+    return *i;
   }
+  panic!("Could not retrieve");
+}
+
+fn main() {
+  insert();
+  let r = retrieve();
+  println!("r: {:#?}", r);
+
+  println!("ODM Interpreter");
+  let progr = fs::read_to_string("assignment.txt").unwrap();
+  println!("Program: {:#?}", &progr);
+  let lexer = build_lexer(progr);
+  let parser = build_parser(lexer);
+  let mut interpreter = build_interpreter(parser);
+  let result = interpreter.interpret();
+  println!("Global scope {:#?}", GLOBAL_SCOPE.lock().unwrap());
+  println!("Result: {:#?}", result);  
 }
