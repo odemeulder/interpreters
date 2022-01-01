@@ -19,9 +19,11 @@ lazy_static! {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum TokenType {
+  Integer,
   Plus,
   Minus,
   Mul,
+  Div,
   Lparen,
   Rparen,
   Eof,
@@ -31,16 +33,6 @@ enum TokenType {
   Semi,
   Dot,
   Id,
-  Program,
-  Colon,
-  Comma,
-  Integer,
-  Real,
-  Var,
-  Integer_Const,
-  Real_Const,
-  Integer_Div,
-  Float_Div
 }
 
 #[derive(Clone, Debug)]
@@ -99,12 +91,7 @@ impl Lexer {
   fn _id(&mut self) -> Token {
     let mut reserved_keywords: HashMap<String, Token> = HashMap::new();
     reserved_keywords.insert(String::from("BEGIN"), build_token(TokenType::Begin, Some(String::from("BEGIN"))));
-    reserved_keywords.insert(String::from("END"), build_token(TokenType::End, Some(String::from("END"))));
-    reserved_keywords.insert(String::from("PROGRAM"), build_token(TokenType::Program, Some(String::from("PROGRAM"))));
-    reserved_keywords.insert(String::from("VAR"), build_token(TokenType::Var, Some(String::from("VAR"))));
-    reserved_keywords.insert(String::from("INTEGER"), build_token(TokenType::Integer, Some(String::from("INTEGER"))));
-    reserved_keywords.insert(String::from("REAL"), build_token(TokenType::Real, Some(String::from("REAL"))));
-    reserved_keywords.insert(String::from("DIV"), build_token(TokenType::Integer_Div, Some(String::from("DIV"))));
+    reserved_keywords.insert(String::from("END"), build_token(TokenType::Begin, Some(String::from("END"))));
     let mut result = String::default();
     loop {
       match self.current_char {
@@ -130,38 +117,18 @@ impl Lexer {
     }
   }
 
-  fn skip_comment(&mut self) -> () {
-    loop {
-      match self.current_char {
-        Some(c) if ! (c == '}') => self.advance(),
-        _ => break
-      }
-      self.advance(); // the closing curly brace
-    }
-  }
-
-  fn number(&mut self) -> Token {
+  fn integer(&mut self) -> String {
     let mut result = String::default();
-    let mut is_real: bool = false;
     loop {
       match self.current_char {
         Some(c) if c.is_digit(10) => {
           result.push(c);
           self.advance();
         },
-        Some(c) if c == '.' => {
-          result.push(c);
-          is_real = true;
-          self.advance();
-        }
         _ => break,
       }
     }
-    if is_real { 
-      return build_token(TokenType::Real_Const, Some(result)) 
-    } else {
-      return build_token(TokenType::Integer_Const, Some(result))
-    };
+    return result;
   }
 
   fn get_next_token(&mut self) -> Token {
@@ -169,11 +136,7 @@ impl Lexer {
       match self.current_char {
         None => return build_token(TokenType::Eof, None),
         Some(c) if c.is_whitespace() => self.skip_whitespace(),
-        Some(c) if c == '{' => {
-          self.advance();
-          self.skip_comment();
-        }
-        Some(c) if c.is_digit(10) => return self.number(),
+        Some(c) if c.is_digit(10) => return build_token(TokenType::Integer, Some(self.integer())),
         Some(c) if c == '+' => {
           self.advance(); 
           return build_token(TokenType::Plus, Some(String::from('+')))
@@ -188,7 +151,7 @@ impl Lexer {
         },
         Some(c) if c == '/' => {
           self.advance(); 
-          return build_token(TokenType::Float_Div, Some(String::from('/')))
+          return build_token(TokenType::Div, Some(String::from('/')))
         },
         Some(c) if c == '(' => {
           self.advance(); 
@@ -216,14 +179,6 @@ impl Lexer {
           self.advance(); 
           return build_token(TokenType::Dot, Some(String::from('.')))
         },
-        Some(c) if c == ':' => {
-          self.advance(); 
-          return build_token(TokenType::Colon, Some(String::from(':')))
-        },
-        Some(c) if c == ',' => {
-          self.advance(); 
-          return build_token(TokenType::Comma, Some(String::from(',')))
-        },
         _ => self.error()
       }
     }
@@ -233,14 +188,19 @@ impl Lexer {
 //               P A R S E R
 //--------------------------------------------------------------------
 
-struct Program {
-  name: String,
-  block: Box<dyn AstNode>,
-}
-struct Block {
-  declarations: Vec<VarDecl>,
-  compound_statement: Box<dyn AstNode>
-}
+// AST nodes
+// enum AST {
+//   BinOp(BinOp),
+//   Num(Num),
+//   UnaryOp(UnaryOp),
+// }
+
+// impl AstNode for AST {
+//   fn visit_node(self: &AST) -> i32 {
+//     return self.visit_node();
+//   }
+// }
+
 struct BinOp {
   token: Token,
   left: Box<dyn AstNode>,
@@ -261,23 +221,6 @@ struct Assign {
   right: Box<dyn AstNode>,
 }
 struct Var {
-  value: Option<String>
-}
-
-fn build_var(token: Option<Token>) -> Var {
-  match token {
-    Some(t) => Var { value: t.value },
-    None => Var { value: None }
-  }
-}
-
-struct VarDecl {
-  var_node: Var,
-  type_node: Type
-}
-#[derive(Clone, Debug)]
-struct Type {
-  token: Token,
   value: String
 }
 struct NoOp;
@@ -303,7 +246,7 @@ impl Parser {
   }
 
   fn eat(&mut self, _token_type: TokenType) -> () {
-    println!("token {:#?}", &self.current_token);
+    // println!("token {:#?}", &self.current_token);
     match &self.current_token {
       Some(Token { token_type: _token_type, ..}) => self.current_token = Some(self.lexer.get_next_token()),
       _ => self.error(),
@@ -312,11 +255,10 @@ impl Parser {
 
   fn factor(&mut self) -> Box<dyn AstNode> {
     // factor : PLUS  factor
-    //        | MINUS factor
-    //        | INTEGER_CONST
-    //        | REAL_CONST
-    //        | LPAREN expr RPAREN
-    //        | variable
+    // | MINUS factor
+    // | INTEGER
+    // | LPAREN expr RPAREN
+    // | variable
     match &self.current_token {
       None => self.error(),
       Some(token) => {
@@ -331,14 +273,7 @@ impl Parser {
           },
           TokenType::Integer => {
             let _token = token.clone();
-            self.eat(TokenType::Integer_Const);
-            return Box::new(Num {
-              value: _token.value
-            })
-          },
-          TokenType::Real => {
-            let _token = token.clone();
-            self.eat(TokenType::Real_Const);
+            self.eat(TokenType::Integer);
             return Box::new(Num {
               value: _token.value
             })
@@ -354,9 +289,9 @@ impl Parser {
       }
     }
     match &self.current_token {
-      Some(token) if token.token_type == TokenType::Integer_Const => {
+      Some(token) if token.token_type == TokenType::Integer => {
         let _token = token.clone();
-        self.eat(TokenType::Integer_Const);
+        self.eat(TokenType::Integer);
         return Box::new(Num {
           value: _token.value
         })
@@ -372,7 +307,6 @@ impl Parser {
   }
 
   fn term(&mut self) -> Box<dyn AstNode> {
-    // term : factor ((MUL | INTEGER_DIV | FLOAT_DIV) factor)*
     let mut node = self.factor();
     loop {
       match &self.current_token {
@@ -381,8 +315,7 @@ impl Parser {
           let _token = token.clone();
           match token.token_type {
             TokenType::Mul => self.eat(TokenType::Mul),
-            TokenType::Integer_Div => self.eat(TokenType::Integer_Div),
-            TokenType::Float_Div => self.eat(TokenType::Float_Div),
+            TokenType::Div => self.eat(TokenType::Div),
             _ => break
           }
           node = Box::new(BinOp {
@@ -428,92 +361,9 @@ impl Parser {
       _ => ()
     }
     // program : compound_statement DOT"
-    self.eat(TokenType::Program);
-    let var_node = self.variable();
-    let prog_name = var_node.value.unwrap(); // TODO
-    self.eat(TokenType::Semi);
-    let block_node = self.block();
-    let program_node = Box::new(Program {
-      block: block_node,
-      name: prog_name
-    });
+    let node = self.compound_statement();
     self.eat(TokenType::Dot);
-    return program_node;
-  }
-
-  fn block(&mut self) -> Box<dyn AstNode> {
-    // block : declarations compound_statement
-    let declaration_nodes = self.declarations();
-    let compound_node = self.compound_statement();
-    return Box::new(Block {
-      compound_statement: compound_node,
-      declarations: declaration_nodes
-    })
-  }
-
-  fn declarations(&mut self) -> Vec<VarDecl>  {
-    // declarations : VAR (variable_declaration SEMI)+
-    //              | empty
-    let mut declarations: Vec<VarDecl> = Vec::new();
-    loop {
-      match &self.current_token {
-        Some(token) if token.token_type == TokenType::Var => self.eat(TokenType::Var),
-        Some(token) if token.token_type == TokenType::Id => {
-          let mut var_declarations = self.variable_declaration();
-          declarations.append(&mut var_declarations);
-          self.eat(TokenType::Semi);
-        },
-        _ => break
-      }
-    }
-    return declarations;
-  }
-
-  fn variable_declaration(&mut self) -> Vec<VarDecl> {
-    // variable_declaration : ID (COMMA ID)* COLON type_spec
-
-    let mut var_nodes = vec![build_var(self.current_token.clone())];
-    loop {
-      match &self.current_token {
-        Some(t) if t.token_type == TokenType::Comma => {
-          self.eat(TokenType::Comma);
-          var_nodes.push(build_var(self.current_token.clone()));
-          self.eat(TokenType::Id);
-        },
-        _ => break
-      }
-    }
-    self.eat(TokenType::Colon);
-    let type_node = self.type_spec();
-    let mut var_declarations = vec![];
-    for var_node in var_nodes {
-      var_declarations.push(VarDecl {
-        var_node: var_node,
-        type_node: type_node.clone()
-      })
-    }
-    return var_declarations;
-  }
-
-  fn type_spec(&mut self) -> Type {
-    // type_spec : INTEGER
-    //           | REAL
-    match &self.current_token {
-      Some(t) if t.token_type == TokenType::Integer => self.eat(TokenType::Integer),
-      Some(t) if t.token_type == TokenType::Real => self.eat(TokenType::Real),
-      _ => (),
-    }
-    return match &self.current_token {
-      Some(token) => {
-        let _token = token.clone();
-        let _value = token.clone().value.unwrap(); // TODO
-        Type {
-          token: _token,
-          value: _value 
-        }        
-      },
-      _ => panic!("Error with type_spec")
-    }
+    return node;
   }
 
   fn compound_statement(&mut self) -> Box<dyn AstNode> {
@@ -521,7 +371,7 @@ impl Parser {
     self.eat(TokenType::Begin);
     let statements = self.statement_list();
     self.eat(TokenType::End);
-    return Box::new(Compound{ children: statements});
+    return Box::new( Compound{ children: statements});
   }
 
   fn statement_list(&mut self) -> Vec<Box<dyn AstNode>> {
@@ -571,7 +421,7 @@ impl Parser {
     match _token {
       None => Box::new(NoOp),
       Some(_) => Box::new(Assign {
-        left: variable.value.unwrap(),
+        left: variable.value,
         right: right
       })
     }
@@ -582,7 +432,7 @@ impl Parser {
     if let Some(token) = &self.current_token {
       let _val = token.clone().value;
       node = Box::new(Var {
-        value: _val     
+        value: _val.unwrap()      
       });
       self.eat(TokenType::Id);
       return node;
@@ -619,7 +469,7 @@ impl AstNode for BinOp {
                               TokenType::Plus  => Some(l+r),
                               TokenType::Minus => Some(l-r),
                               TokenType::Mul   => Some(l*r),
-                              TokenType::Integer_Div   => Some(l/r), // TODO FLOAT DIV
+                              TokenType::Div   => Some(l/r),
                               _ => panic!("Unexpected token"),
                             }
       _ => panic!("Unexpected token")
@@ -674,39 +524,13 @@ impl AstNode for Assign {
 
 impl AstNode for Var {
   fn visit_node(&self) -> Option<i32> {
-    let var_name = self.value.as_ref().unwrap(); // TODO
+    let var_name = &self.value;
     let map =  GLOBAL_SCOPE.lock().unwrap();
     let x = match map.get(var_name) {
       None => None,
       Some(v) => *v
     };
     return x;
-  }
-}
-
-impl AstNode for Block {
-  fn visit_node(&self) -> Option<i32> {
-    // for decl in self.declarations {
-    //   decl.visit_node();
-    // } // SINCE visit VarDecl does nothing for now. leaving this out.
-    self.compound_statement.visit_node()
-  }
-}
-
-impl AstNode for VarDecl {
-  fn visit_node(&self) -> Option<i32> {
-    None // TO DO 
-  }
-}
-impl AstNode for Type {
-  fn visit_node(&self) -> Option<i32> {
-    None // TO DO 
-  }
-}
-
-impl AstNode for Program {
-  fn visit_node(&self) -> Option<i32> {
-    return self.block.visit_node();
   }
 }
 
@@ -758,7 +582,7 @@ fn main() {
   println!("r: {:#?}", r);
 
   println!("ODM Interpreter");
-  let progr = fs::read_to_string("program10.txt").unwrap();
+  let progr = fs::read_to_string("assignment.txt").unwrap();
   println!("Program: {:#?}", &progr);
   let lexer = build_lexer(progr);
   let parser = build_parser(lexer);
