@@ -10,7 +10,7 @@ use std::sync::Mutex;
 // println!("token {:#?}", token);
 
 lazy_static! {
-  static ref GLOBAL_SCOPE: Mutex<HashMap<String, Option<i32>>> = Mutex::new(HashMap::new());
+  static ref GLOBAL_SCOPE: Mutex<HashMap<String, TokenValue>> = Mutex::new(HashMap::new());
 }
 
 //--------------------------------------------------------------------
@@ -19,6 +19,7 @@ lazy_static! {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum TokenType {
+  None,
   Plus,
   Minus,
   Mul,
@@ -44,12 +45,20 @@ enum TokenType {
 }
 
 #[derive(Clone, Debug)]
-struct Token {
-  token_type: TokenType,
-  value: Option<String>,
+enum TokenValue {
+  None,
+  String(String),
+  Int(i32),
+  Float(f64),
 }
 
-fn build_token(token_type: TokenType, value: Option<String>) -> Token {
+#[derive(Clone, Debug)]
+struct Token {
+  token_type: TokenType,
+  value: TokenValue,
+}
+
+fn build_token(token_type: TokenType, value: TokenValue) -> Token {
   Token {
     token_type,
     value,
@@ -98,13 +107,13 @@ impl Lexer {
 
   fn _id(&mut self) -> Token {
     let mut reserved_keywords: HashMap<String, Token> = HashMap::new();
-    reserved_keywords.insert(String::from("BEGIN"), build_token(TokenType::Begin, Some(String::from("BEGIN"))));
-    reserved_keywords.insert(String::from("END"), build_token(TokenType::End, Some(String::from("END"))));
-    reserved_keywords.insert(String::from("PROGRAM"), build_token(TokenType::Program, Some(String::from("PROGRAM"))));
-    reserved_keywords.insert(String::from("VAR"), build_token(TokenType::Var, Some(String::from("VAR"))));
-    reserved_keywords.insert(String::from("INTEGER"), build_token(TokenType::Integer, Some(String::from("INTEGER"))));
-    reserved_keywords.insert(String::from("REAL"), build_token(TokenType::Real, Some(String::from("REAL"))));
-    reserved_keywords.insert(String::from("DIV"), build_token(TokenType::Integer_Div, Some(String::from("DIV"))));
+    reserved_keywords.insert(String::from("BEGIN"), build_token(TokenType::Begin, TokenValue::String(String::from("BEGIN"))));
+    reserved_keywords.insert(String::from("END"), build_token(TokenType::End, TokenValue::String(String::from("END"))));
+    reserved_keywords.insert(String::from("PROGRAM"), build_token(TokenType::Program, TokenValue::String(String::from("PROGRAM"))));
+    reserved_keywords.insert(String::from("VAR"), build_token(TokenType::Var, TokenValue::String(String::from("VAR"))));
+    reserved_keywords.insert(String::from("INTEGER"), build_token(TokenType::Integer, TokenValue::String(String::from("INTEGER"))));
+    reserved_keywords.insert(String::from("REAL"), build_token(TokenType::Real, TokenValue::String(String::from("REAL"))));
+    reserved_keywords.insert(String::from("DIV"), build_token(TokenType::Integer_Div, TokenValue::String(String::from("DIV"))));
     let mut result = String::default();
     loop {
       match self.current_char {
@@ -116,7 +125,7 @@ impl Lexer {
       }
     }
     return match reserved_keywords.get(&result) {
-      None => build_token(TokenType::Id, Some(result)),
+      None => build_token(TokenType::Id, TokenValue::String(result)),
       Some(token) => token.clone()
     }
   }
@@ -158,16 +167,18 @@ impl Lexer {
       }
     }
     if is_real { 
-      return build_token(TokenType::Real_Const, Some(result)) 
+      let f: f64 = result.parse().unwrap(); // unwrap is safe here, considering we just built the string correctly above
+      return build_token(TokenType::Real_Const, TokenValue::Float(f)) 
     } else {
-      return build_token(TokenType::Integer_Const, Some(result))
+      let i: i32 = result.parse().unwrap(); // unwrap is safe here, considering we just built the string correctly above
+      return build_token(TokenType::Integer_Const, TokenValue::Int(i)) 
     };
   }
 
   fn get_next_token(&mut self) -> Token {
     loop {
       match self.current_char {
-        None => return build_token(TokenType::Eof, None),
+        None => return build_token(TokenType::Eof, TokenValue::None),
         Some(c) if c.is_whitespace() => self.skip_whitespace(),
         Some(c) if c == '{' => {
           self.advance();
@@ -176,27 +187,27 @@ impl Lexer {
         Some(c) if c.is_digit(10) => return self.number(),
         Some(c) if c == '+' => {
           self.advance(); 
-          return build_token(TokenType::Plus, Some(String::from('+')))
+          return build_token(TokenType::Plus, TokenValue::String(String::from('+')))
         },
         Some(c) if c == '-' => {
           self.advance(); 
-          return build_token(TokenType::Minus, Some(String::from('-')))
+          return build_token(TokenType::Minus, TokenValue::String(String::from('-')))
         },
         Some(c) if c == '*' => {
           self.advance(); 
-          return build_token(TokenType::Mul, Some(String::from('*')))
+          return build_token(TokenType::Mul, TokenValue::String(String::from('*')))
         },
         Some(c) if c == '/' => {
           self.advance(); 
-          return build_token(TokenType::Float_Div, Some(String::from('/')))
+          return build_token(TokenType::Float_Div, TokenValue::String(String::from('/')))
         },
         Some(c) if c == '(' => {
           self.advance(); 
-          return build_token(TokenType::Lparen, Some(String::from('(')))
+          return build_token(TokenType::Lparen, TokenValue::String(String::from('(')))
         },
         Some(c) if c == ')' => {
           self.advance(); 
-          return build_token(TokenType::Rparen, Some(String::from(')')))
+          return build_token(TokenType::Rparen, TokenValue::String(String::from(')')))
         },
         Some(c) if c.is_alphanumeric() => {
           return self._id(); 
@@ -205,24 +216,24 @@ impl Lexer {
           if let Some('=') = &self.peek() {
             self.advance(); 
             self.advance();
-            return build_token(TokenType::Assign, Some(String::from(":=")))  
+            return build_token(TokenType::Assign, TokenValue::String(String::from(":=")))  
           }
         },
         Some(c) if c == ';' => {
           self.advance(); 
-          return build_token(TokenType::Semi, Some(String::from(';')))
+          return build_token(TokenType::Semi, TokenValue::String(String::from(';')))
         },
         Some(c) if c == '.' => {
           self.advance(); 
-          return build_token(TokenType::Dot, Some(String::from('.')))
+          return build_token(TokenType::Dot, TokenValue::String(String::from('.')))
         },
         Some(c) if c == ':' => {
           self.advance(); 
-          return build_token(TokenType::Colon, Some(String::from(':')))
+          return build_token(TokenType::Colon, TokenValue::String(String::from(':')))
         },
         Some(c) if c == ',' => {
           self.advance(); 
-          return build_token(TokenType::Comma, Some(String::from(',')))
+          return build_token(TokenType::Comma, TokenValue::String(String::from(',')))
         },
         _ => self.error()
       }
@@ -247,7 +258,7 @@ struct BinOp {
   right: Box<dyn AstNode>,
 }
 struct Num {
-  value: Option<String>
+  value: TokenValue
 }
 struct UnaryOp {
   token: Token,
@@ -261,13 +272,13 @@ struct Assign {
   right: Box<dyn AstNode>,
 }
 struct Var {
-  value: Option<String>
+  value: TokenValue
 }
 
 fn build_var(token: Option<Token>) -> Var {
   match token {
     Some(t) => Var { value: t.value },
-    None => Var { value: None }
+    None => Var { value: TokenValue::None }
   }
 }
 
@@ -278,7 +289,7 @@ struct VarDecl {
 #[derive(Clone, Debug)]
 struct Type {
   token: Token,
-  value: String
+  value: TokenValue
 }
 struct NoOp;
 
@@ -367,7 +378,7 @@ impl Parser {
         self.eat(TokenType::Rparen);
         return node;
       }
-      _ => { self.error(); return Box::new(Num { value: Some(String::from("0"))}) }
+      _ => { self.error(); return Box::new(Num { value: TokenValue::String(String::from("0"))}) } // TO DO  SOMETHING ODD HERE
     }
   }
 
@@ -430,7 +441,11 @@ impl Parser {
     // program : compound_statement DOT"
     self.eat(TokenType::Program);
     let var_node = self.variable();
-    let prog_name = var_node.value.unwrap(); // TODO
+    let prog_name = match var_node.value {
+      TokenValue::String(s) => s,
+      _ => String::from("Illegal program name")
+    };
+    // let prog_name = var_node.value.unwrap(); // TODO
     self.eat(TokenType::Semi);
     let block_node = self.block();
     let program_node = Box::new(Program {
@@ -506,7 +521,7 @@ impl Parser {
     return match &self.current_token {
       Some(token) => {
         let _token = token.clone();
-        let _value = token.clone().value.unwrap(); // TODO
+        let _value = token.clone().value; 
         Type {
           token: _token,
           value: _value 
@@ -568,10 +583,14 @@ impl Parser {
     let _token = self.current_token.clone();
     self.eat(TokenType::Assign);
     let right = self.expr();
+    let var_name = match variable.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Illegal variable name")
+    };
     match _token {
       None => Box::new(NoOp),
       Some(_) => Box::new(Assign {
-        left: variable.value.unwrap(),
+        left: var_name,
         right: right
       })
     }
@@ -609,19 +628,26 @@ impl Parser {
 //--------------------------------------------------------------------
 
 trait AstNode {
-  fn visit_node(&self) -> Option<i32>;
+  fn visit_node(&self) -> TokenValue;
 }
 
 impl AstNode for BinOp {
-  fn visit_node(&self) -> Option<i32> {
+  fn visit_node(&self) -> TokenValue {
     match (self.left.visit_node(), self.right.visit_node()) {
-      (Some(l), Some(r)) => match self.token.token_type {
-                              TokenType::Plus  => Some(l+r),
-                              TokenType::Minus => Some(l-r),
-                              TokenType::Mul   => Some(l*r),
-                              TokenType::Integer_Div   => Some(l/r), // TODO FLOAT DIV
+      (TokenValue::Int(l), TokenValue::Int(r)) => match self.token.token_type {
+                              TokenType::Plus  => TokenValue::Int(l+r),
+                              TokenType::Minus => TokenValue::Int(l-r),
+                              TokenType::Mul   => TokenValue::Int(l*r),
+                              TokenType::Integer_Div   => TokenValue::Int(l/r), 
                               _ => panic!("Unexpected token"),
-                            }
+                            },
+      (TokenValue::Float(l), TokenValue::Float(r)) => match self.token.token_type {
+                              TokenType::Plus  => TokenValue::Float(l+r),
+                              TokenType::Minus => TokenValue::Float(l-r),
+                              TokenType::Mul   => TokenValue::Float(l*r),
+                              TokenType::Float_Div   => TokenValue::Float(l/r), 
+                              _ => panic!("Unexpected token"),
+                            },
       _ => panic!("Unexpected token")
     }
 
@@ -629,63 +655,72 @@ impl AstNode for BinOp {
 }
 
 impl AstNode for Num {
-  fn visit_node(&self) -> Option<i32> {
-    return match &self.value {
-      None => panic!("Invalid node"),
-      Some(v) => match v.parse::<i32>() {
-        Ok(n) => Some(n),
-        Err(_) => panic!("Cannot convert token to int")
-      }
+  fn visit_node(&self) -> TokenValue {
+    return match self.value {
+      TokenValue::None => panic!("Invalid node"),
+      TokenValue::Int(i) => TokenValue::Int(i),
+      TokenValue::Float(f) => TokenValue::Float(f),
+      _ => panic!("Invalid node")
     }
   }
 }
 
 impl AstNode for UnaryOp {
-  fn visit_node(&self) -> Option<i32> {
+  fn visit_node(&self) -> TokenValue {
     match self.expr.visit_node() {
-      None => None,
-      Some(i) => match self.token.token_type {
-        TokenType::Plus  => Some(i),
-        TokenType::Minus => Some(-i),
+      TokenValue::None => TokenValue::None,
+      TokenValue::Int(i) => match self.token.token_type {
+        TokenType::Plus  => TokenValue::Int(i),
+        TokenType::Minus => TokenValue::Int(-i),
         _ => panic!("Invalid unary operator")
-      }
+      },
+      TokenValue::Float(f) => match self.token.token_type {
+          TokenType::Plus  => TokenValue::Float(f),
+          TokenType::Minus => TokenValue::Float(-f),
+          _ => panic!("Invalid unary operator")
+        },
+      _ => panic!("Invalid unary operator")
     }
   }
 }
 
 impl AstNode for Compound {
-  fn visit_node(&self) -> Option<i32> {
+  fn visit_node(&self) -> TokenValue {
     for statement in &self.children {
       statement.visit_node();
     }
-    return None;
+    return TokenValue::None;
   }
 }
 
 impl AstNode for Assign {
-  fn visit_node(&self) -> Option<i32> {
+  fn visit_node(&self) -> TokenValue {
     let var_name = &self.left;
     let right = self.right.visit_node();
     let mut guard = GLOBAL_SCOPE.lock().unwrap();
     guard.insert(var_name.to_string(), right);
-    None 
+    TokenValue::None 
   }
 }
 
 impl AstNode for Var {
-  fn visit_node(&self) -> Option<i32> {
-    let var_name = self.value.as_ref().unwrap(); // TODO
+  fn visit_node(&self) -> TokenValue {
+    // let var_name = self.value.as_ref().unwrap(); // TODO
+    let var_name = match &self.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Invalid variable name")
+    };
     let map =  GLOBAL_SCOPE.lock().unwrap();
     let x = match map.get(var_name) {
-      None => None,
-      Some(v) => *v
+      None => TokenValue::None,
+      Some(v) => v.clone()
     };
     return x;
   }
 }
 
 impl AstNode for Block {
-  fn visit_node(&self) -> Option<i32> {
+  fn visit_node(&self) -> TokenValue {
     // for decl in self.declarations {
     //   decl.visit_node();
     // } // SINCE visit VarDecl does nothing for now. leaving this out.
@@ -694,25 +729,25 @@ impl AstNode for Block {
 }
 
 impl AstNode for VarDecl {
-  fn visit_node(&self) -> Option<i32> {
-    None // TO DO 
+  fn visit_node(&self) -> TokenValue {
+    TokenValue::None // TO DO 
   }
 }
 impl AstNode for Type {
-  fn visit_node(&self) -> Option<i32> {
-    None // TO DO 
+  fn visit_node(&self) -> TokenValue {
+    TokenValue::None // TO DO 
   }
 }
 
 impl AstNode for Program {
-  fn visit_node(&self) -> Option<i32> {
+  fn visit_node(&self) -> TokenValue {
     return self.block.visit_node();
   }
 }
 
 impl AstNode for NoOp {
-  fn visit_node(&self) -> Option<i32> {
-    None 
+  fn visit_node(&self) -> TokenValue {
+    TokenValue::None 
   }
 }
 
@@ -728,7 +763,7 @@ fn build_interpreter(parser: Parser) -> Interpreter {
 }
 
 impl Interpreter {
-  fn interpret(&mut self) -> Option<i32> {
+  fn interpret(&mut self) -> TokenValue {
     let tree = &self.parser.parse();
     return tree.visit_node();
   }
@@ -739,23 +774,23 @@ impl Interpreter {
 //--------------------------------------------------------------------
 
 fn insert() {
-  GLOBAL_SCOPE.lock().unwrap().insert(String::from("olivier"), Some(48));
+  GLOBAL_SCOPE.lock().unwrap().insert(String::from("olivier"), TokenValue::Int(48));
 }
 
-fn retrieve() -> Option<i32> {
-  let map = GLOBAL_SCOPE.lock().unwrap();
-  let result = map.get("olivier");
-  println!("Result {:#?}", result);
-  if let Some(i) = result {
-    return *i;
-  }
-  panic!("Could not retrieve");
-}
+// fn retrieve() -> Option<i32> {
+//   let map = GLOBAL_SCOPE.lock().unwrap();
+//   let result = map.get("olivier");
+//   println!("Result {:#?}", result);
+//   if let Some(i) = result {
+//     return *i;
+//   }
+//   panic!("Could not retrieve");
+// }
 
 fn main() {
   insert();
-  let r = retrieve();
-  println!("r: {:#?}", r);
+  // let r = retrieve();
+  // println!("r: {:#?}", r);
 
   println!("ODM Interpreter");
   let progr = fs::read_to_string("program10.txt").unwrap();
