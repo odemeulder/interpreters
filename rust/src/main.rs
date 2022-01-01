@@ -38,10 +38,10 @@ enum TokenType {
   Integer,
   Real,
   Var,
-  Integer_Const,
-  Real_Const,
-  Integer_Div,
-  Float_Div
+  IntegerConst,
+  RealConst,
+  IntegerDiv,
+  FloatDiv
 }
 
 #[derive(Clone, Debug)]
@@ -113,7 +113,7 @@ impl Lexer {
     reserved_keywords.insert(String::from("VAR"), build_token(TokenType::Var, TokenValue::String(String::from("VAR"))));
     reserved_keywords.insert(String::from("INTEGER"), build_token(TokenType::Integer, TokenValue::String(String::from("INTEGER"))));
     reserved_keywords.insert(String::from("REAL"), build_token(TokenType::Real, TokenValue::String(String::from("REAL"))));
-    reserved_keywords.insert(String::from("DIV"), build_token(TokenType::Integer_Div, TokenValue::String(String::from("DIV"))));
+    reserved_keywords.insert(String::from("DIV"), build_token(TokenType::IntegerDiv, TokenValue::String(String::from("DIV"))));
     let mut result = String::default();
     loop {
       match self.current_char {
@@ -168,10 +168,10 @@ impl Lexer {
     }
     if is_real { 
       let f: f64 = result.parse().unwrap(); // unwrap is safe here, considering we just built the string correctly above
-      return build_token(TokenType::Real_Const, TokenValue::Float(f)) 
+      return build_token(TokenType::RealConst, TokenValue::Float(f)) 
     } else {
       let i: i32 = result.parse().unwrap(); // unwrap is safe here, considering we just built the string correctly above
-      return build_token(TokenType::Integer_Const, TokenValue::Int(i)) 
+      return build_token(TokenType::IntegerConst, TokenValue::Int(i)) 
     };
   }
 
@@ -199,7 +199,7 @@ impl Lexer {
         },
         Some(c) if c == '/' => {
           self.advance(); 
-          return build_token(TokenType::Float_Div, TokenValue::String(String::from('/')))
+          return build_token(TokenType::FloatDiv, TokenValue::String(String::from('/')))
         },
         Some(c) if c == '(' => {
           self.advance(); 
@@ -275,11 +275,8 @@ struct Var {
   value: TokenValue
 }
 
-fn build_var(token: Option<Token>) -> Var {
-  match token {
-    Some(t) => Var { value: t.value },
-    None => Var { value: TokenValue::None }
-  }
+fn build_var(token: Token) -> Var {
+  Var { value: token.value }
 }
 
 struct VarDecl {
@@ -297,13 +294,13 @@ struct NoOp;
 #[derive(Debug)]
 struct Parser {
   lexer: Lexer,
-  current_token: Option<Token>
+  current_token: Token
 }
 
 fn build_parser(lexer: Lexer) -> Parser {
   return Parser {
     lexer,
-    current_token: None
+    current_token: build_token(TokenType::None, TokenValue::None)
   }
 }
 
@@ -315,8 +312,8 @@ impl Parser {
 
   fn eat(&mut self, _token_type: TokenType) -> () {
     println!("token {:#?}", &self.current_token);
-    match &self.current_token {
-      Some(Token { token_type: _token_type, ..}) => self.current_token = Some(self.lexer.get_next_token()),
+    match &self.current_token.token_type {
+      _token_type => self.current_token = self.lexer.get_next_token(),
       _ => self.error(),
     }
   }
@@ -328,81 +325,53 @@ impl Parser {
     //        | REAL_CONST
     //        | LPAREN expr RPAREN
     //        | variable
-    match &self.current_token {
-      None => self.error(),
-      Some(token) => {
-        let _token = token.clone();
-        match &token.token_type {
-          TokenType::Plus | TokenType::Minus => {
-            self.eat(_token.token_type);
-            return Box::new(UnaryOp {
-              token: _token,
-              expr: self.factor()
-            })
-          },
-          TokenType::Integer => {
-            let _token = token.clone();
-            self.eat(TokenType::Integer_Const);
-            return Box::new(Num {
-              value: _token.value
-            })
-          },
-          TokenType::Real => {
-            let _token = token.clone();
-            self.eat(TokenType::Real_Const);
-            return Box::new(Num {
-              value: _token.value
-            })
-          },
-          TokenType::Lparen => {
-            self.eat(TokenType::Lparen);
-            let node = self.expr();
-            self.eat(TokenType::Rparen);
-            return node;            
-          },
-          _ => return self.variable()
-        }
-      }
-    }
-    match &self.current_token {
-      Some(token) if token.token_type == TokenType::Integer_Const => {
-        let _token = token.clone();
-        self.eat(TokenType::Integer_Const);
+    let _token = self.current_token.clone();
+    match self.current_token.token_type {
+      TokenType::Plus | TokenType::Minus => {
+        self.eat(_token.token_type);
+        return Box::new(UnaryOp {
+          token: _token,
+          expr: self.factor()
+        })
+      },      
+      TokenType::Integer => {
+        self.eat(TokenType::IntegerConst);
         return Box::new(Num {
           value: _token.value
         })
       },
-      Some(token) if token.token_type == TokenType::Lparen => {
+      TokenType::Real => {
+        self.eat(TokenType::RealConst);
+        return Box::new(Num {
+          value: _token.value
+        })
+      },
+      TokenType::Lparen => {
         self.eat(TokenType::Lparen);
         let node = self.expr();
         self.eat(TokenType::Rparen);
-        return node;
+        return node;            
+      },
+      _ => return self.variable()
       }
-      _ => { self.error(); return Box::new(Num { value: TokenValue::String(String::from("0"))}) } // TO DO  SOMETHING ODD HERE
-    }
   }
 
   fn term(&mut self) -> Box<dyn AstNode> {
     // term : factor ((MUL | INTEGER_DIV | FLOAT_DIV) factor)*
     let mut node = self.factor();
     loop {
-      match &self.current_token {
-        None => break,
-        Some(token) => { 
-          let _token = token.clone();
-          match token.token_type {
-            TokenType::Mul => self.eat(TokenType::Mul),
-            TokenType::Integer_Div => self.eat(TokenType::Integer_Div),
-            TokenType::Float_Div => self.eat(TokenType::Float_Div),
-            _ => break
-          }
-          node = Box::new(BinOp {
-            left: node,
-            token: _token,
-            right: self.factor()
-          })          
-        }
+      match &self.current_token.token_type {
+        TokenType::Mul => self.eat(TokenType::Mul),
+        TokenType::IntegerDiv => self.eat(TokenType::IntegerDiv),
+        TokenType::FloatDiv => self.eat(TokenType::FloatDiv),
+        _ => break
       }
+      let _token = self.current_token.clone();
+      node = Box::new(BinOp {
+        left: node,
+        token: _token,
+        right: self.factor()
+      })          
     }
     return node;
   }
@@ -412,31 +381,25 @@ impl Parser {
     // Begin
     let mut node = self.term();
     loop {
-      match &self.current_token {
-        None => break,
-        Some(token) => { 
-          let _token = token.clone();
-          match token.token_type {
-            TokenType::Plus => self.eat(TokenType::Plus),
-            TokenType::Minus => self.eat(TokenType::Minus),
-            _ => break
-          }
-          node = Box::new(BinOp {
-            left: node,
-            token: _token,
-            right: self.term()
-          })          
-        }
-      }
+      match &self.current_token.token_type {
+        TokenType::Plus => self.eat(TokenType::Plus),
+        TokenType::Minus => self.eat(TokenType::Minus),
+        _ => break
+      };
+      let _token = self.current_token.clone();
+      node = Box::new(BinOp {
+        left: node,
+        token: _token,
+        right: self.term()
+      })          
     }
     return node;
   }
 
   fn program(&mut self) -> Box<dyn AstNode> {
     // If this is the the initial run, the current_token is None
-    match self.current_token {
-      None => self.current_token = Some(self.lexer.get_next_token()),
-      _ => ()
+    if self.current_token.token_type == TokenType::None {
+      self.current_token = self.lexer.get_next_token()
     }
     // program : compound_statement DOT"
     self.eat(TokenType::Program);
@@ -471,9 +434,9 @@ impl Parser {
     //              | empty
     let mut declarations: Vec<VarDecl> = Vec::new();
     loop {
-      match &self.current_token {
-        Some(token) if token.token_type == TokenType::Var => self.eat(TokenType::Var),
-        Some(token) if token.token_type == TokenType::Id => {
+      match &self.current_token.token_type {
+        TokenType::Var => self.eat(TokenType::Var),
+        TokenType::Id => {
           let mut var_declarations = self.variable_declaration();
           declarations.append(&mut var_declarations);
           self.eat(TokenType::Semi);
@@ -489,8 +452,8 @@ impl Parser {
 
     let mut var_nodes = vec![build_var(self.current_token.clone())];
     loop {
-      match &self.current_token {
-        Some(t) if t.token_type == TokenType::Comma => {
+      match &self.current_token.token_type {
+        TokenType::Comma => {
           self.eat(TokenType::Comma);
           var_nodes.push(build_var(self.current_token.clone()));
           self.eat(TokenType::Id);
@@ -513,22 +476,15 @@ impl Parser {
   fn type_spec(&mut self) -> Type {
     // type_spec : INTEGER
     //           | REAL
-    match &self.current_token {
-      Some(t) if t.token_type == TokenType::Integer => self.eat(TokenType::Integer),
-      Some(t) if t.token_type == TokenType::Real => self.eat(TokenType::Real),
+    match &self.current_token.token_type {
+      TokenType::Integer => self.eat(TokenType::Integer),
+      TokenType::Real => self.eat(TokenType::Real),
       _ => (),
     }
-    return match &self.current_token {
-      Some(token) => {
-        let _token = token.clone();
-        let _value = token.clone().value; 
-        Type {
-          token: _token,
-          value: _value 
-        }        
-      },
-      _ => panic!("Error with type_spec")
-    }
+    Type {
+      token: self.current_token.clone(),
+      value: self.current_token.clone().value 
+    }  
   }
 
   fn compound_statement(&mut self) -> Box<dyn AstNode> {
@@ -545,17 +501,12 @@ impl Parser {
     let node = self.statement();
     let mut results = vec![node];
     loop {
-      match &self.current_token {
-        None => break,
-        Some(token) => {
-          match token.token_type {
-            TokenType::Semi => {
-              self.eat(TokenType::Semi);
-              results.push(self.statement())
-            },
-            _ => break
-          }
-        }
+      match &self.current_token.token_type {
+        TokenType::Semi => {
+          self.eat(TokenType::Semi);
+          results.push(self.statement())
+        },
+        _ => break
       }
     }
     return results;
@@ -565,16 +516,10 @@ impl Parser {
     // statement : compound_statement
     //           | assignment_statement
     //           | empty
-    match &self.current_token {
-      Some(token) => {
-        let _token = token.clone();
-        match token.token_type {
-          TokenType::Begin => self.compound_statement(),
-          TokenType::Id => self.assignment_statement(),
-          _ => self.empty()
-        }
-      }
-      None => self.empty()
+    match self.current_token.token_type {
+      TokenType::Begin => self.compound_statement(),
+      TokenType::Id => self.assignment_statement(),
+      _ => self.empty()    
     }
   }
 
@@ -587,26 +532,18 @@ impl Parser {
       TokenValue::String(s) => s,
       _ => panic!("Illegal variable name")
     };
-    match _token {
-      None => Box::new(NoOp),
-      Some(_) => Box::new(Assign {
-        left: var_name,
-        right: right
-      })
-    }
+    return Box::new(Assign {
+      left: var_name,
+      right: right
+    })
   }
 
   fn variable(&mut self) -> Box<Var> {
-    let node: Box<Var>;
-    if let Some(token) = &self.current_token {
-      let _val = token.clone().value;
-      node = Box::new(Var {
-        value: _val     
-      });
-      self.eat(TokenType::Id);
-      return node;
-    }
-    panic!("Unable to assign variable");
+    let node: Box<Var> = Box::new(Var {
+      value: self.current_token.clone().value     
+    });
+    self.eat(TokenType::Id);
+    return node;
   }
 
   fn empty(&mut self) -> Box<dyn AstNode> {
@@ -615,8 +552,8 @@ impl Parser {
 
   fn parse(&mut self) -> Box<dyn AstNode> {
     let node = self.program();
-    match &self.current_token {
-      Some(token) if token.token_type == TokenType::Eof => {},
+    match &self.current_token.token_type {
+      TokenType::Eof => {},
       _ => self.error()
     }
     return node;
@@ -638,15 +575,15 @@ impl AstNode for BinOp {
                               TokenType::Plus  => TokenValue::Int(l+r),
                               TokenType::Minus => TokenValue::Int(l-r),
                               TokenType::Mul   => TokenValue::Int(l*r),
-                              TokenType::Integer_Div   => TokenValue::Int(l/r), 
-                              _ => panic!("Unexpected token"),
+                              TokenType::IntegerDiv   => TokenValue::Int(l/r), 
+                              _ => panic!("Unexpected binary operator"),
                             },
       (TokenValue::Float(l), TokenValue::Float(r)) => match self.token.token_type {
                               TokenType::Plus  => TokenValue::Float(l+r),
                               TokenType::Minus => TokenValue::Float(l-r),
                               TokenType::Mul   => TokenValue::Float(l*r),
-                              TokenType::Float_Div   => TokenValue::Float(l/r), 
-                              _ => panic!("Unexpected token"),
+                              TokenType::FloatDiv   => TokenValue::Float(l/r), 
+                              _ => panic!("Unexpected binary operator"),
                             },
       _ => panic!("Unexpected token")
     }
@@ -730,12 +667,12 @@ impl AstNode for Block {
 
 impl AstNode for VarDecl {
   fn visit_node(&self) -> TokenValue {
-    TokenValue::None // TO DO 
+    TokenValue::None  
   }
 }
 impl AstNode for Type {
   fn visit_node(&self) -> TokenValue {
-    TokenValue::None // TO DO 
+    TokenValue::None  
   }
 }
 
