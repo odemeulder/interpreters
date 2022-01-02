@@ -84,7 +84,7 @@ fn build_lexer(_text: String) -> Lexer {
 impl Lexer {
   
   fn error(&self) ->() {
-    panic!("Invalid character")
+    panic!("Invalid character {:#?}", self.current_char)
   }
 
   fn advance(&mut self) -> () {
@@ -145,8 +145,8 @@ impl Lexer {
         Some(c) if ! (c == '}') => self.advance(),
         _ => break
       }
-      self.advance(); // the closing curly brace
     }
+    self.advance(); // the closing curly brace
   }
 
   fn number(&mut self) -> Token {
@@ -217,6 +217,9 @@ impl Lexer {
             self.advance(); 
             self.advance();
             return build_token(TokenType::Assign, TokenValue::String(String::from(":=")))  
+          } else {
+            self.advance(); 
+            return build_token(TokenType::Colon, TokenValue::String(String::from(':')))  
           }
         },
         Some(c) if c == ';' => {
@@ -226,10 +229,6 @@ impl Lexer {
         Some(c) if c == '.' => {
           self.advance(); 
           return build_token(TokenType::Dot, TokenValue::String(String::from('.')))
-        },
-        Some(c) if c == ':' => {
-          self.advance(); 
-          return build_token(TokenType::Colon, TokenValue::String(String::from(':')))
         },
         Some(c) if c == ',' => {
           self.advance(); 
@@ -252,6 +251,7 @@ struct Block {
   declarations: Vec<VarDecl>,
   compound_statement: Box<dyn AstNode>
 }
+
 struct BinOp {
   token: Token,
   left: Box<dyn AstNode>,
@@ -271,6 +271,7 @@ struct Assign {
   left: String,
   right: Box<dyn AstNode>,
 }
+#[derive(Clone, Debug)]
 struct Var {
   value: TokenValue
 }
@@ -283,6 +284,7 @@ struct VarDecl {
   var_node: Var,
   type_node: Type
 }
+
 #[derive(Clone, Debug)]
 struct Type {
   token: Token,
@@ -307,14 +309,15 @@ fn build_parser(lexer: Lexer) -> Parser {
 impl Parser {
 
   fn error(&self) ->() {
-    panic!("Error parsing input")
+    panic!("Error parsing input {:#?}", &self.current_token)
   }
 
   fn eat(&mut self, _token_type: TokenType) -> () {
-    println!("token {:#?}", &self.current_token);
-    match &self.current_token.token_type {
-      _token_type => self.current_token = self.lexer.get_next_token(),
-      _ => self.error(),
+    // println!("eat token {:#?}", &self.current_token);
+    if self.current_token.token_type == _token_type {
+      self.current_token = self.lexer.get_next_token();
+    } else {
+      self.error();
     }
   }
 
@@ -334,13 +337,13 @@ impl Parser {
           expr: self.factor()
         })
       },      
-      TokenType::Integer => {
+      TokenType::IntegerConst => {
         self.eat(TokenType::IntegerConst);
         return Box::new(Num {
           value: _token.value
         })
       },
-      TokenType::Real => {
+      TokenType::RealConst => {
         self.eat(TokenType::RealConst);
         return Box::new(Num {
           value: _token.value
@@ -360,13 +363,13 @@ impl Parser {
     // term : factor ((MUL | INTEGER_DIV | FLOAT_DIV) factor)*
     let mut node = self.factor();
     loop {
+      let _token = self.current_token.clone();
       match &self.current_token.token_type {
         TokenType::Mul => self.eat(TokenType::Mul),
         TokenType::IntegerDiv => self.eat(TokenType::IntegerDiv),
         TokenType::FloatDiv => self.eat(TokenType::FloatDiv),
         _ => break
       }
-      let _token = self.current_token.clone();
       node = Box::new(BinOp {
         left: node,
         token: _token,
@@ -381,12 +384,12 @@ impl Parser {
     // Begin
     let mut node = self.term();
     loop {
+      let _token = self.current_token.clone();
       match &self.current_token.token_type {
         TokenType::Plus => self.eat(TokenType::Plus),
         TokenType::Minus => self.eat(TokenType::Minus),
         _ => break
       };
-      let _token = self.current_token.clone();
       node = Box::new(BinOp {
         left: node,
         token: _token,
@@ -408,7 +411,6 @@ impl Parser {
       TokenValue::String(s) => s,
       _ => String::from("Illegal program name")
     };
-    // let prog_name = var_node.value.unwrap(); // TODO
     self.eat(TokenType::Semi);
     let block_node = self.block();
     let program_node = Box::new(Program {
@@ -449,13 +451,14 @@ impl Parser {
 
   fn variable_declaration(&mut self) -> Vec<VarDecl> {
     // variable_declaration : ID (COMMA ID)* COLON type_spec
-
     let mut var_nodes = vec![build_var(self.current_token.clone())];
+    self.eat(TokenType::Id);
     loop {
       match &self.current_token.token_type {
         TokenType::Comma => {
           self.eat(TokenType::Comma);
-          var_nodes.push(build_var(self.current_token.clone()));
+          let var_node = build_var(self.current_token.clone());
+          var_nodes.push(var_node);
           self.eat(TokenType::Id);
         },
         _ => break
@@ -570,12 +573,15 @@ trait AstNode {
 
 impl AstNode for BinOp {
   fn visit_node(&self) -> TokenValue {
-    match (self.left.visit_node(), self.right.visit_node()) {
+    let left = self.left.visit_node();
+    let right = self.right.visit_node();
+    return match (left, right) {
       (TokenValue::Int(l), TokenValue::Int(r)) => match self.token.token_type {
                               TokenType::Plus  => TokenValue::Int(l+r),
                               TokenType::Minus => TokenValue::Int(l-r),
                               TokenType::Mul   => TokenValue::Int(l*r),
                               TokenType::IntegerDiv   => TokenValue::Int(l/r), 
+                              TokenType::FloatDiv   => TokenValue::Float(l as f64 / r as f64), 
                               _ => panic!("Unexpected binary operator"),
                             },
       (TokenValue::Float(l), TokenValue::Float(r)) => match self.token.token_type {
@@ -633,7 +639,7 @@ impl AstNode for Compound {
 impl AstNode for Assign {
   fn visit_node(&self) -> TokenValue {
     let var_name = &self.left;
-    let right = self.right.visit_node();
+  let right = self.right.visit_node();
     let mut guard = GLOBAL_SCOPE.lock().unwrap();
     guard.insert(var_name.to_string(), right);
     TokenValue::None 
@@ -714,20 +720,8 @@ fn insert() {
   GLOBAL_SCOPE.lock().unwrap().insert(String::from("olivier"), TokenValue::Int(48));
 }
 
-// fn retrieve() -> Option<i32> {
-//   let map = GLOBAL_SCOPE.lock().unwrap();
-//   let result = map.get("olivier");
-//   println!("Result {:#?}", result);
-//   if let Some(i) = result {
-//     return *i;
-//   }
-//   panic!("Could not retrieve");
-// }
-
 fn main() {
   insert();
-  // let r = retrieve();
-  // println!("r: {:#?}", r);
 
   println!("ODM Interpreter");
   let progr = fs::read_to_string("program10.txt").unwrap();
