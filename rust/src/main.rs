@@ -3,6 +3,7 @@ extern crate lazy_static;
 
 // use std::io;
 use std::fs;
+use std::fmt;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -44,10 +45,16 @@ enum TokenType {
   FloatDiv
 }
 
+impl fmt::Display for TokenType {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "{}", self)
+  }
+}
+
 #[derive(Clone, Debug)]
 enum TokenValue {
   None,
-  String(String),
+  String(&'static str),
   Int(i32),
   Float(f64),
 }
@@ -107,13 +114,13 @@ impl Lexer {
 
   fn _id(&mut self) -> Token {
     let mut reserved_keywords: HashMap<String, Token> = HashMap::new();
-    reserved_keywords.insert(String::from("BEGIN"), build_token(TokenType::Begin, TokenValue::String(String::from("BEGIN"))));
-    reserved_keywords.insert(String::from("END"), build_token(TokenType::End, TokenValue::String(String::from("END"))));
-    reserved_keywords.insert(String::from("PROGRAM"), build_token(TokenType::Program, TokenValue::String(String::from("PROGRAM"))));
-    reserved_keywords.insert(String::from("VAR"), build_token(TokenType::Var, TokenValue::String(String::from("VAR"))));
-    reserved_keywords.insert(String::from("INTEGER"), build_token(TokenType::Integer, TokenValue::String(String::from("INTEGER"))));
-    reserved_keywords.insert(String::from("REAL"), build_token(TokenType::Real, TokenValue::String(String::from("REAL"))));
-    reserved_keywords.insert(String::from("DIV"), build_token(TokenType::IntegerDiv, TokenValue::String(String::from("DIV"))));
+    reserved_keywords.insert(String::from("BEGIN"), build_token(TokenType::Begin, TokenValue::String("BEGIN")));
+    reserved_keywords.insert(String::from("END"), build_token(TokenType::End, TokenValue::String("END")));
+    reserved_keywords.insert(String::from("PROGRAM"), build_token(TokenType::Program, TokenValue::String("PROGRAM")));
+    reserved_keywords.insert(String::from("VAR"), build_token(TokenType::Var, TokenValue::String("VAR")));
+    reserved_keywords.insert(String::from("INTEGER"), build_token(TokenType::Integer, TokenValue::String("INTEGER")));
+    reserved_keywords.insert(String::from("REAL"), build_token(TokenType::Real, TokenValue::String("REAL")));
+    reserved_keywords.insert(String::from("DIV"), build_token(TokenType::IntegerDiv, TokenValue::String("DIV")));
     let mut result = String::default();
     loop {
       match self.current_char {
@@ -124,8 +131,10 @@ impl Lexer {
         _ => break,
       }
     }
+    let _result = result.clone();
+    let s_slice: &str = Box::leak(_result.into_boxed_str()); // Strange concoction to convert String to &'static str
     return match reserved_keywords.get(&result) {
-      None => build_token(TokenType::Id, TokenValue::String(result)),
+      None => build_token(TokenType::Id, TokenValue::String(s_slice)),
       Some(token) => token.clone()
     }
   }
@@ -187,27 +196,27 @@ impl Lexer {
         Some(c) if c.is_digit(10) => return self.number(),
         Some(c) if c == '+' => {
           self.advance(); 
-          return build_token(TokenType::Plus, TokenValue::String(String::from('+')))
+          return build_token(TokenType::Plus, TokenValue::String("+"))
         },
         Some(c) if c == '-' => {
           self.advance(); 
-          return build_token(TokenType::Minus, TokenValue::String(String::from('-')))
+          return build_token(TokenType::Minus, TokenValue::String("-'"))
         },
         Some(c) if c == '*' => {
           self.advance(); 
-          return build_token(TokenType::Mul, TokenValue::String(String::from('*')))
+          return build_token(TokenType::Mul, TokenValue::String("*"))
         },
         Some(c) if c == '/' => {
           self.advance(); 
-          return build_token(TokenType::FloatDiv, TokenValue::String(String::from('/')))
+          return build_token(TokenType::FloatDiv, TokenValue::String("/"))
         },
         Some(c) if c == '(' => {
           self.advance(); 
-          return build_token(TokenType::Lparen, TokenValue::String(String::from('(')))
+          return build_token(TokenType::Lparen, TokenValue::String("("))
         },
         Some(c) if c == ')' => {
           self.advance(); 
-          return build_token(TokenType::Rparen, TokenValue::String(String::from(')')))
+          return build_token(TokenType::Rparen, TokenValue::String(")"))
         },
         Some(c) if c.is_alphanumeric() => {
           return self._id(); 
@@ -216,29 +225,132 @@ impl Lexer {
           if let Some('=') = &self.peek() {
             self.advance(); 
             self.advance();
-            return build_token(TokenType::Assign, TokenValue::String(String::from(":=")))  
+            return build_token(TokenType::Assign, TokenValue::String(":="))  
           } else {
             self.advance(); 
-            return build_token(TokenType::Colon, TokenValue::String(String::from(':')))  
+            return build_token(TokenType::Colon, TokenValue::String(":"))  
           }
         },
         Some(c) if c == ';' => {
           self.advance(); 
-          return build_token(TokenType::Semi, TokenValue::String(String::from(';')))
+          return build_token(TokenType::Semi, TokenValue::String(";"))
         },
         Some(c) if c == '.' => {
           self.advance(); 
-          return build_token(TokenType::Dot, TokenValue::String(String::from('.')))
+          return build_token(TokenType::Dot, TokenValue::String("."))
         },
         Some(c) if c == ',' => {
           self.advance(); 
-          return build_token(TokenType::Comma, TokenValue::String(String::from(',')))
+          return build_token(TokenType::Comma, TokenValue::String(","))
         },
         _ => self.error()
       }
     }
   }
 }
+
+//--------------------------------------------------------------------
+//               S Y M B O L S
+//--------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+struct BuiltinTypeSymbol {
+  name: &'static str,
+}
+
+impl BuiltinTypeSymbol {
+  fn new(s: &'static str) -> BuiltinTypeSymbol {
+    BuiltinTypeSymbol {
+      name: s,
+    }
+  }
+}
+
+#[derive(Clone, Debug)]
+struct VarSymbol {
+  name: &'static str,
+  symbol_type: BuiltinTypeSymbol,
+}
+impl VarSymbol {
+  fn new(s: &'static str, tt:BuiltinTypeSymbol) -> VarSymbol {
+    VarSymbol {
+      name: s,
+      symbol_type: tt
+    }
+  }
+}
+
+trait NamedSymbol {
+  fn get_name(&mut self) -> &'static str;
+}
+
+impl NamedSymbol for Symbol {
+  fn get_name(&mut self) -> &'static str {
+    match &self {
+      Symbol::Builtin(b) => b.name,
+      Symbol::Var(v) => v.name,
+      Symbol::None => "NONE"
+    }
+  }
+}
+
+impl fmt::Display for BuiltinTypeSymbol {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "{}", self.name)
+  }
+}
+impl fmt::Display for VarSymbol {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "<{}:{}>", self.name, self.symbol_type)
+  }
+}
+
+#[derive(Clone, Debug)]
+enum Symbol {
+  None,
+  Builtin(BuiltinTypeSymbol),
+  Var(VarSymbol)
+}
+
+lazy_static! {
+  static ref SYMBOL_TABLE: Mutex<HashMap<&'static str, Symbol>> = Mutex::new(HashMap::new());
+}
+
+fn define_symbol(sym: Symbol) -> () {
+  let mut map = SYMBOL_TABLE.lock().unwrap();
+  let n = sym.clone().get_name();
+  map.insert(n, sym);
+}
+
+fn init_symbol_table() -> () {
+  define_symbol(Symbol::Builtin(BuiltinTypeSymbol::new("INTEGER")));
+  define_symbol(Symbol::Builtin(BuiltinTypeSymbol::new("REAL")));
+}
+
+fn lookup_symbol(s: &'static str) -> Symbol {
+  let map = SYMBOL_TABLE.lock().unwrap();
+  match map.get(s) {
+    None => Symbol::None,
+    Some(s) => s.clone() 
+  }
+}
+
+struct SymbolTableBuilder {
+  parser: Parser
+}
+impl SymbolTableBuilder {
+  fn new(parser: Parser) -> SymbolTableBuilder {
+    init_symbol_table();
+    return SymbolTableBuilder {
+      parser
+    }
+  }
+  fn build(&mut self) -> () {
+    let tree = self.parser.parse();
+    tree.visit_node_for_symbols();
+  }
+}
+
 //--------------------------------------------------------------------
 //               P A R S E R
 //--------------------------------------------------------------------
@@ -248,7 +360,7 @@ struct Program {
   block: Box<dyn AstNode>,
 }
 struct Block {
-  declarations: Vec<VarDecl>,
+  declarations: Vec<Box<dyn AstNode>>,
   compound_statement: Box<dyn AstNode>
 }
 
@@ -268,7 +380,7 @@ struct Compound {
   children: Vec<Box<dyn AstNode>>
 }
 struct Assign {
-  left: String,
+  left: &'static str,
   right: Box<dyn AstNode>,
 }
 #[derive(Clone, Debug)]
@@ -293,7 +405,7 @@ struct Type {
 struct NoOp;
 
 // Parser
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Parser {
   lexer: Lexer,
   current_token: Token
@@ -409,13 +521,13 @@ impl Parser {
     let var_node = self.variable();
     let prog_name = match var_node.value {
       TokenValue::String(s) => s,
-      _ => String::from("Illegal program name")
+      _ => "Illegal program name"
     };
     self.eat(TokenType::Semi);
     let block_node = self.block();
     let program_node = Box::new(Program {
       block: block_node,
-      name: prog_name
+      name: String::from(prog_name)
     });
     self.eat(TokenType::Dot);
     return program_node;
@@ -431,10 +543,10 @@ impl Parser {
     })
   }
 
-  fn declarations(&mut self) -> Vec<VarDecl>  {
+  fn declarations(&mut self) -> Vec<Box<dyn AstNode>>  {
     // declarations : VAR (variable_declaration SEMI)+
     //              | empty
-    let mut declarations: Vec<VarDecl> = Vec::new();
+    let mut declarations: Vec<Box<dyn AstNode>> = Vec::new();
     loop {
       match &self.current_token.token_type {
         TokenType::Var => self.eat(TokenType::Var),
@@ -449,7 +561,7 @@ impl Parser {
     return declarations;
   }
 
-  fn variable_declaration(&mut self) -> Vec<VarDecl> {
+  fn variable_declaration(&mut self) -> Vec<Box<dyn AstNode>> {
     // variable_declaration : ID (COMMA ID)* COLON type_spec
     let mut var_nodes = vec![build_var(self.current_token.clone())];
     self.eat(TokenType::Id);
@@ -466,12 +578,12 @@ impl Parser {
     }
     self.eat(TokenType::Colon);
     let type_node = self.type_spec();
-    let mut var_declarations = vec![];
+    let mut var_declarations: Vec<Box<dyn AstNode>> = Vec::new();
     for var_node in var_nodes {
-      var_declarations.push(VarDecl {
+      var_declarations.push(Box::new(VarDecl {
         var_node: var_node,
         type_node: type_node.clone()
-      })
+      }))
     }
     return var_declarations;
   }
@@ -479,14 +591,16 @@ impl Parser {
   fn type_spec(&mut self) -> Type {
     // type_spec : INTEGER
     //           | REAL
+    let _token = self.current_token.clone();
+    let _value = self.current_token.clone().value;
     match &self.current_token.token_type {
       TokenType::Integer => self.eat(TokenType::Integer),
       TokenType::Real => self.eat(TokenType::Real),
       _ => (),
     }
     Type {
-      token: self.current_token.clone(),
-      value: self.current_token.clone().value 
+      token: _token,
+      value: _value 
     }  
   }
 
@@ -569,6 +683,7 @@ impl Parser {
 
 trait AstNode {
   fn visit_node(&self) -> TokenValue;
+  fn visit_node_for_symbols(&self);
 }
 
 impl AstNode for BinOp {
@@ -595,6 +710,10 @@ impl AstNode for BinOp {
     }
 
   }
+  fn visit_node_for_symbols(&self) { 
+    self.left.visit_node_for_symbols();
+    self.right.visit_node_for_symbols();
+  }
 }
 
 impl AstNode for Num {
@@ -606,6 +725,7 @@ impl AstNode for Num {
       _ => panic!("Invalid node")
     }
   }
+  fn visit_node_for_symbols(&self) { }
 }
 
 impl AstNode for UnaryOp {
@@ -625,6 +745,9 @@ impl AstNode for UnaryOp {
       _ => panic!("Invalid unary operator")
     }
   }
+  fn visit_node_for_symbols(&self) {
+    self.expr.visit_node_for_symbols();
+  }
 }
 
 impl AstNode for Compound {
@@ -634,22 +757,35 @@ impl AstNode for Compound {
     }
     return TokenValue::None;
   }
+  fn visit_node_for_symbols(&self) { 
+    for statement in &self.children {
+      statement.visit_node_for_symbols();
+    }    
+  }
 }
 
 impl AstNode for Assign {
   fn visit_node(&self) -> TokenValue {
     let var_name = &self.left;
-  let right = self.right.visit_node();
+    let right = self.right.visit_node();
     let mut guard = GLOBAL_SCOPE.lock().unwrap();
     guard.insert(var_name.to_string(), right);
     TokenValue::None 
+  }
+  fn visit_node_for_symbols(&self) { 
+    let var_name = self.left;
+    let var_symbol = lookup_symbol(var_name);
+    if let Symbol::None = var_symbol {
+      panic!("Assign to undeclared variable name: {}", var_name)
+    }
+    self.right.visit_node_for_symbols()
   }
 }
 
 impl AstNode for Var {
   fn visit_node(&self) -> TokenValue {
     // let var_name = self.value.as_ref().unwrap(); // TODO
-    let var_name = match &self.value {
+    let var_name = match self.value {
       TokenValue::String(s) => s,
       _ => panic!("Invalid variable name")
     };
@@ -660,6 +796,16 @@ impl AstNode for Var {
     };
     return x;
   }
+  fn visit_node_for_symbols(&self) { 
+    let var_name = match self.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Cannot lookup variable, invalid var name type")
+    };
+    let var_symbol = lookup_symbol(var_name);
+    if let Symbol::None = var_symbol {
+      panic!("Unknown variable name: {}", var_name)
+    }
+  }
 }
 
 impl AstNode for Block {
@@ -669,22 +815,48 @@ impl AstNode for Block {
     // } // SINCE visit VarDecl does nothing for now. leaving this out.
     self.compound_statement.visit_node()
   }
+  fn visit_node_for_symbols(&self) {
+    for decl in &self.declarations {
+      decl.visit_node_for_symbols();
+    } 
+    self.compound_statement.visit_node_for_symbols()
+  }
 }
 
 impl AstNode for VarDecl {
   fn visit_node(&self) -> TokenValue {
     TokenValue::None  
   }
+  fn visit_node_for_symbols(&self) { 
+    let type_name = match self.type_node.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Cannot declare variable, invalid type name")
+    };
+    let type_symbol = match lookup_symbol(type_name) {
+      Symbol::Builtin(b) => b,
+      s => { panic!("Cannot declare variable, invalid built in {:#?}", s); }
+    };
+    let var_name = match self.var_node.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Cannot declare variable, invalid var name")
+    };
+    let var_symbol = VarSymbol::new(var_name, type_symbol);
+    define_symbol(Symbol::Var(var_symbol));
+  }
 }
 impl AstNode for Type {
   fn visit_node(&self) -> TokenValue {
     TokenValue::None  
   }
+  fn visit_node_for_symbols(&self) { }
 }
 
 impl AstNode for Program {
   fn visit_node(&self) -> TokenValue {
     return self.block.visit_node();
+  }
+  fn visit_node_for_symbols(&self) { 
+    self.block.visit_node_for_symbols()
   }
 }
 
@@ -692,6 +864,7 @@ impl AstNode for NoOp {
   fn visit_node(&self) -> TokenValue {
     TokenValue::None 
   }
+  fn visit_node_for_symbols(&self) { }
 }
 
 #[derive(Debug)]
@@ -728,8 +901,13 @@ fn main() {
   println!("Program: {:#?}", &progr);
   let lexer = build_lexer(progr);
   let parser = build_parser(lexer);
+  let _parser = parser.clone();
+  let mut stb = SymbolTableBuilder::new(_parser);
+  println!("Symbol table {:#?}", SYMBOL_TABLE.lock().unwrap());
+  stb.build();
   let mut interpreter = build_interpreter(parser);
   let result = interpreter.interpret();
   println!("Global scope {:#?}", GLOBAL_SCOPE.lock().unwrap());
+  println!("Symbol table {:?}", SYMBOL_TABLE.lock().unwrap());
   println!("Result: {:#?}", result);  
 }
