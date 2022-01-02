@@ -9,6 +9,7 @@ mod global_scope;
 mod parser;
 mod node_visitor;
 mod interpreter;
+mod semantic_analyzer;
 
 //--------------------------------------------------------------------
 //               M A I N
@@ -26,13 +27,15 @@ fn main() {
   println!("Program: {:#?}", &progr);
   let lexer = lexer::build_lexer(progr);
   let parser = parser::build_parser(lexer);
+
   let _parser = parser.clone();
-  let mut stb = symbol_table::SymbolTableBuilder::new(_parser);
+  let mut sem_analyzer = semantic_analyzer::SemanticAnalyzer::new(_parser);
   symbol_table::display();
-  stb.build();
+  sem_analyzer.analyze();
+  symbol_table::display();
+
   let mut interpreter = interpreter::build_interpreter(parser);
   let result = interpreter.interpret();
   global_scope::display();
-  symbol_table::display();
   println!("Result: {:#?}", result);  
 }

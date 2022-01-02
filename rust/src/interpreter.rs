@@ -19,6 +19,6 @@ pub fn build_interpreter(parser: Parser) -> Interpreter {
 impl Interpreter {
   pub fn interpret(&mut self) -> TokenValue {
     let tree = &self.parser.parse();
-    return tree.visit_node();
+    return tree.visit();
   }
 }

@@ -5,7 +5,6 @@
 use std::fmt;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use crate::parser::Parser;
 
 #[derive(Clone, Debug)]
 pub struct BuiltinTypeSymbol {
@@ -90,7 +89,7 @@ pub fn define_symbol(sym: Symbol) -> () {
   map.insert(n, sym);
 }
 
-fn init_symbol_table() -> () {
+pub fn init_symbol_table() -> () {
   define_symbol(Symbol::Builtin(BuiltinTypeSymbol::new("INTEGER")));
   define_symbol(Symbol::Builtin(BuiltinTypeSymbol::new("REAL")));
 }
@@ -104,22 +103,5 @@ pub fn lookup_symbol(s: &'static str) -> Symbol {
 }
 
 pub fn display() {
-  println!("Symbol Table {:?}", SYMBOL_TABLE.lock().unwrap());
+  println!("Symbol Table {:#?}", SYMBOL_TABLE.lock().unwrap());
 }
-
-pub struct SymbolTableBuilder {
-  parser: Parser
-}
-impl SymbolTableBuilder {
-  pub fn new(parser: Parser) -> SymbolTableBuilder {
-    init_symbol_table();
-    return SymbolTableBuilder {
-      parser
-    }
-  }
-  pub fn build(&mut self) -> () {
-    let tree = self.parser.parse();
-    tree.visit_node_for_symbols();
-  }
-}
-

@@ -11,14 +11,15 @@ use crate::symbol_table::VarSymbol;
 use crate::global_scope;
 
 pub trait AstNode {
-  fn visit_node(&self) -> TokenValue;
-  fn visit_node_for_symbols(&self);
+  fn visit(&self) -> TokenValue;
+  fn visit_for_symbols(&self);
+  fn visit_for_sem_analysis(&self);
 }
 
 impl AstNode for BinOp {
-  fn visit_node(&self) -> TokenValue {
-    let left = self.left.visit_node();
-    let right = self.right.visit_node();
+  fn visit(&self) -> TokenValue {
+    let left = self.left.visit();
+    let right = self.right.visit();
     return match (left, right) {
       (TokenValue::Int(l), TokenValue::Int(r)) => match self.token.token_type {
                               TokenType::Plus  => TokenValue::Int(l+r),
@@ -39,14 +40,18 @@ impl AstNode for BinOp {
     }
 
   }
-  fn visit_node_for_symbols(&self) { 
-    self.left.visit_node_for_symbols();
-    self.right.visit_node_for_symbols();
+  fn visit_for_symbols(&self) { 
+    self.left.visit_for_symbols();
+    self.right.visit_for_symbols();
+  }
+  fn visit_for_sem_analysis(&self) {
+    self.left.visit_for_sem_analysis();
+    self.right.visit_for_sem_analysis();
   }
 }
 
 impl AstNode for Num {
-  fn visit_node(&self) -> TokenValue {
+  fn visit(&self) -> TokenValue {
     return match self.value {
       TokenValue::None => panic!("Invalid node"),
       TokenValue::Int(i) => TokenValue::Int(i),
@@ -54,12 +59,13 @@ impl AstNode for Num {
       _ => panic!("Invalid node")
     }
   }
-  fn visit_node_for_symbols(&self) { }
+  fn visit_for_symbols(&self) { }
+  fn visit_for_sem_analysis(&self) { }
 }
 
 impl AstNode for UnaryOp {
-  fn visit_node(&self) -> TokenValue {
-    match self.expr.visit_node() {
+  fn visit(&self) -> TokenValue {
+    match self.expr.visit() {
       TokenValue::None => TokenValue::None,
       TokenValue::Int(i) => match self.token.token_type {
         TokenType::Plus  => TokenValue::Int(i),
@@ -74,53 +80,69 @@ impl AstNode for UnaryOp {
       _ => panic!("Invalid unary operator")
     }
   }
-  fn visit_node_for_symbols(&self) {
-    self.expr.visit_node_for_symbols();
+  fn visit_for_symbols(&self) {
+    self.expr.visit_for_symbols();
+  }
+  fn visit_for_sem_analysis(&self) {
+    self.expr.visit_for_sem_analysis();
   }
 }
 
 impl AstNode for Compound {
-  fn visit_node(&self) -> TokenValue {
+  fn visit(&self) -> TokenValue {
     for statement in &self.children {
-      statement.visit_node();
+      statement.visit();
     }
     return TokenValue::None;
   }
-  fn visit_node_for_symbols(&self) { 
+  fn visit_for_symbols(&self) { 
     for statement in &self.children {
-      statement.visit_node_for_symbols();
+      statement.visit_for_symbols();
+    }    
+  }
+  fn visit_for_sem_analysis(&self) { 
+    for statement in &self.children {
+      statement.visit_for_sem_analysis();
     }    
   }
 }
 
 impl AstNode for Assign {
-  fn visit_node(&self) -> TokenValue {
+  fn visit(&self) -> TokenValue {
     let var_name = &self.left;
-    let right = self.right.visit_node();
+    let right = self.right.visit();
     // let mut guard = GLOBAL_SCOPE.lock().unwrap();
     // guard.insert(var_name.to_string(), right);
     global_scope::insert(var_name, right);
     TokenValue::None 
   }
-  fn visit_node_for_symbols(&self) { 
+  fn visit_for_symbols(&self) { 
     let var_name = self.left;
     let var_symbol = symbol_table::lookup_symbol(var_name);
     if let symbol_table::Symbol::None = var_symbol {
       panic!("Assign to undeclared variable name: {}", var_name)
     }
-    self.right.visit_node_for_symbols()
+    self.right.visit_for_symbols()
   }
+  fn visit_for_sem_analysis(&self) { 
+    let var_name = self.left;
+    let var_symbol = symbol_table::lookup_symbol(var_name);
+    if let symbol_table::Symbol::None = var_symbol {
+      panic!("Assign to undeclared variable name: {}", var_name)
+    }
+    self.right.visit_for_symbols()
+   }
 }
 
 impl AstNode for Var {
-  fn visit_node(&self) -> TokenValue {
+  fn visit(&self) -> TokenValue {
     let var_name = match self.value {
       TokenValue::String(s) => s,
       _ => panic!("Invalid variable name")
     };
     return global_scope::retrieve(var_name);
   }
-  fn visit_node_for_symbols(&self) { 
+  fn visit_for_symbols(&self) { 
     let var_name = match self.value {
       TokenValue::String(s) => s,
       _ => panic!("Cannot lookup variable, invalid var name type")
@@ -130,28 +152,43 @@ impl AstNode for Var {
       panic!("Unknown variable name: {}", var_name)
     }
   }
+  fn visit_for_sem_analysis(&self) {
+    let var_name = match self.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Cannot lookup variable, invalid var name type")
+    };
+    let var_symbol = symbol_table::lookup_symbol(var_name);
+    if let symbol_table::Symbol::None = var_symbol {
+      panic!("Error: Symbol(identifier) not found {}", var_name)
+    }
+  }
 }
 
 impl AstNode for Block {
-  fn visit_node(&self) -> TokenValue {
-    // for decl in self.declarations {
-    //   decl.visit_node();
-    // } // SINCE visit VarDecl does nothing for now. leaving this out.
-    self.compound_statement.visit_node()
+  fn visit(&self) -> TokenValue {
+    self.compound_statement.visit()
   }
-  fn visit_node_for_symbols(&self) {
+  fn visit_for_symbols(&self) {
     for decl in &self.declarations {
-      decl.visit_node_for_symbols();
+      decl.visit_for_symbols();
     } 
-    self.compound_statement.visit_node_for_symbols()
+    self.compound_statement.visit_for_symbols()
   }
+  fn visit_for_sem_analysis(&self) { 
+    for decl in &self.declarations {
+      decl.visit_for_sem_analysis();
+    }
+    self.compound_statement.visit_for_sem_analysis()
+ }
 }
 
 impl AstNode for VarDecl {
-  fn visit_node(&self) -> TokenValue {
+  fn visit(&self) -> TokenValue {
     TokenValue::None  
   }
-  fn visit_node_for_symbols(&self) { 
+  fn visit_for_symbols(&self) { 
+  }
+  fn visit_for_sem_analysis(&self) { 
     let type_name = match self.type_node.value {
       TokenValue::String(s) => s,
       _ => panic!("Cannot declare variable, invalid type name")
@@ -165,37 +202,51 @@ impl AstNode for VarDecl {
       _ => panic!("Cannot declare variable, invalid var name")
     };
     let var_symbol = VarSymbol::new(var_name, type_symbol);
+    // prevent addition of duplicate symbols
+    let var_symbol_lookup = symbol_table::lookup_symbol(var_name);
+    match var_symbol_lookup {
+      Symbol::None => (),
+      _ => panic!("Attempt to declare duplicate variable")
+    }
+    // insert into symbol table
     symbol_table::define_symbol(Symbol::Var(var_symbol));
   }
 }
+
 impl AstNode for Type {
-  fn visit_node(&self) -> TokenValue {
+  fn visit(&self) -> TokenValue {
     TokenValue::None  
   }
-  fn visit_node_for_symbols(&self) { }
+  fn visit_for_symbols(&self) { }
+  fn visit_for_sem_analysis(&self) { }
 }
 
 impl AstNode for Program {
-  fn visit_node(&self) -> TokenValue {
-    return self.block.visit_node();
+  fn visit(&self) -> TokenValue {
+    return self.block.visit();
   }
-  fn visit_node_for_symbols(&self) { 
-    self.block.visit_node_for_symbols()
+  fn visit_for_symbols(&self) { 
+    self.block.visit_for_symbols()
+  }
+  fn visit_for_sem_analysis(&self) {
+    self.block.visit_for_sem_analysis()
   }
 }
 
 impl AstNode for ProcedureDecl {
-  fn visit_node(&self) -> TokenValue {
+  fn visit(&self) -> TokenValue {
     return TokenValue::None;
   }
-  fn visit_node_for_symbols(&self) { 
+  fn visit_for_symbols(&self) { 
     ()
   }
+  fn visit_for_sem_analysis(&self) { }
 }
 
 impl AstNode for NoOp {
-  fn visit_node(&self) -> TokenValue {
+  fn visit(&self) -> TokenValue {
     TokenValue::None 
   }
-  fn visit_node_for_symbols(&self) { }
+  fn visit_for_symbols(&self) { }
+  fn visit_for_sem_analysis(&self) { }
 }
