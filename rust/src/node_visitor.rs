@@ -12,7 +12,6 @@ use crate::global_scope;
 
 pub trait AstNode {
   fn visit(&self) -> TokenValue;
-  fn visit_for_symbols(&self);
   fn visit_for_sem_analysis(&self);
 }
 
@@ -40,10 +39,6 @@ impl AstNode for BinOp {
     }
 
   }
-  fn visit_for_symbols(&self) { 
-    self.left.visit_for_symbols();
-    self.right.visit_for_symbols();
-  }
   fn visit_for_sem_analysis(&self) {
     self.left.visit_for_sem_analysis();
     self.right.visit_for_sem_analysis();
@@ -59,7 +54,6 @@ impl AstNode for Num {
       _ => panic!("Invalid node")
     }
   }
-  fn visit_for_symbols(&self) { }
   fn visit_for_sem_analysis(&self) { }
 }
 
@@ -80,9 +74,6 @@ impl AstNode for UnaryOp {
       _ => panic!("Invalid unary operator")
     }
   }
-  fn visit_for_symbols(&self) {
-    self.expr.visit_for_symbols();
-  }
   fn visit_for_sem_analysis(&self) {
     self.expr.visit_for_sem_analysis();
   }
@@ -95,11 +86,6 @@ impl AstNode for Compound {
     }
     return TokenValue::None;
   }
-  fn visit_for_symbols(&self) { 
-    for statement in &self.children {
-      statement.visit_for_symbols();
-    }    
-  }
   fn visit_for_sem_analysis(&self) { 
     for statement in &self.children {
       statement.visit_for_sem_analysis();
@@ -111,18 +97,8 @@ impl AstNode for Assign {
   fn visit(&self) -> TokenValue {
     let var_name = &self.left;
     let right = self.right.visit();
-    // let mut guard = GLOBAL_SCOPE.lock().unwrap();
-    // guard.insert(var_name.to_string(), right);
     global_scope::insert(var_name, right);
     TokenValue::None 
-  }
-  fn visit_for_symbols(&self) { 
-    let var_name = self.left;
-    let var_symbol = symbol_table::lookup_symbol(var_name);
-    if let symbol_table::Symbol::None = var_symbol {
-      panic!("Assign to undeclared variable name: {}", var_name)
-    }
-    self.right.visit_for_symbols()
   }
   fn visit_for_sem_analysis(&self) { 
     let var_name = self.left;
@@ -130,7 +106,7 @@ impl AstNode for Assign {
     if let symbol_table::Symbol::None = var_symbol {
       panic!("Assign to undeclared variable name: {}", var_name)
     }
-    self.right.visit_for_symbols()
+    self.right.visit_for_sem_analysis()
    }
 }
 
@@ -141,16 +117,6 @@ impl AstNode for Var {
       _ => panic!("Invalid variable name")
     };
     return global_scope::retrieve(var_name);
-  }
-  fn visit_for_symbols(&self) { 
-    let var_name = match self.value {
-      TokenValue::String(s) => s,
-      _ => panic!("Cannot lookup variable, invalid var name type")
-    };
-    let var_symbol = symbol_table::lookup_symbol(var_name);
-    if let symbol_table::Symbol::None = var_symbol {
-      panic!("Unknown variable name: {}", var_name)
-    }
   }
   fn visit_for_sem_analysis(&self) {
     let var_name = match self.value {
@@ -168,12 +134,6 @@ impl AstNode for Block {
   fn visit(&self) -> TokenValue {
     self.compound_statement.visit()
   }
-  fn visit_for_symbols(&self) {
-    for decl in &self.declarations {
-      decl.visit_for_symbols();
-    } 
-    self.compound_statement.visit_for_symbols()
-  }
   fn visit_for_sem_analysis(&self) { 
     for decl in &self.declarations {
       decl.visit_for_sem_analysis();
@@ -185,8 +145,6 @@ impl AstNode for Block {
 impl AstNode for VarDecl {
   fn visit(&self) -> TokenValue {
     TokenValue::None  
-  }
-  fn visit_for_symbols(&self) { 
   }
   fn visit_for_sem_analysis(&self) { 
     let type_name = match self.type_node.value {
@@ -217,16 +175,12 @@ impl AstNode for Type {
   fn visit(&self) -> TokenValue {
     TokenValue::None  
   }
-  fn visit_for_symbols(&self) { }
   fn visit_for_sem_analysis(&self) { }
 }
 
 impl AstNode for Program {
   fn visit(&self) -> TokenValue {
     return self.block.visit();
-  }
-  fn visit_for_symbols(&self) { 
-    self.block.visit_for_symbols()
   }
   fn visit_for_sem_analysis(&self) {
     self.block.visit_for_sem_analysis()
@@ -237,9 +191,6 @@ impl AstNode for ProcedureDecl {
   fn visit(&self) -> TokenValue {
     return TokenValue::None;
   }
-  fn visit_for_symbols(&self) { 
-    ()
-  }
   fn visit_for_sem_analysis(&self) { }
 }
 
@@ -247,6 +198,5 @@ impl AstNode for NoOp {
   fn visit(&self) -> TokenValue {
     TokenValue::None 
   }
-  fn visit_for_symbols(&self) { }
   fn visit_for_sem_analysis(&self) { }
 }
