@@ -42,7 +42,8 @@ enum TokenType {
   IntegerConst,
   RealConst,
   IntegerDiv,
-  FloatDiv
+  FloatDiv,
+  Procedure
 }
 
 impl fmt::Display for TokenType {
@@ -121,6 +122,7 @@ impl Lexer {
     reserved_keywords.insert(String::from("INTEGER"), build_token(TokenType::Integer, TokenValue::String("INTEGER")));
     reserved_keywords.insert(String::from("REAL"), build_token(TokenType::Real, TokenValue::String("REAL")));
     reserved_keywords.insert(String::from("DIV"), build_token(TokenType::IntegerDiv, TokenValue::String("DIV")));
+    reserved_keywords.insert(String::from("PROCEDURE"), build_token(TokenType::IntegerDiv, TokenValue::String("PROCEDURE")));
     let mut result = String::default();
     loop {
       match self.current_char {
@@ -359,6 +361,12 @@ struct Program {
   name: String,
   block: Box<dyn AstNode>,
 }
+
+struct ProcedureDecl {
+  name: &'static str,
+  block: Box<dyn AstNode>,
+}
+
 struct Block {
   declarations: Vec<Box<dyn AstNode>>,
   compound_statement: Box<dyn AstNode>
@@ -369,20 +377,25 @@ struct BinOp {
   left: Box<dyn AstNode>,
   right: Box<dyn AstNode>,
 }
+
 struct Num {
   value: TokenValue
 }
+
 struct UnaryOp {
   token: Token,
   expr: Box<dyn AstNode>,
 }
+
 struct Compound {
   children: Vec<Box<dyn AstNode>>
 }
+
 struct Assign {
   left: &'static str,
   right: Box<dyn AstNode>,
 }
+
 #[derive(Clone, Debug)]
 struct Var {
   value: TokenValue
@@ -402,6 +415,7 @@ struct Type {
   token: Token,
   value: TokenValue
 }
+
 struct NoOp;
 
 // Parser
@@ -544,21 +558,46 @@ impl Parser {
   }
 
   fn declarations(&mut self) -> Vec<Box<dyn AstNode>>  {
-    // declarations : VAR (variable_declaration SEMI)+
-    //              | empty
+    /* declarations : VAR (variable_declaration SEMI)+
+                     | (PROCEDURE ID SEMI block SEMI)*
+                     | empty 
+    */
     let mut declarations: Vec<Box<dyn AstNode>> = Vec::new();
+    if let TokenType::Var = self.current_token.token_type {
+      self.eat(TokenType::Var);
+      loop {
+        match self.current_token.token_type {
+          TokenType::Id => {
+            let mut var_declarations = self.variable_declaration();
+            declarations.append(&mut var_declarations);
+            self.eat(TokenType::Semi);  
+          },
+          _ => break
+        }
+      }
+    }
     loop {
-      match &self.current_token.token_type {
-        TokenType::Var => self.eat(TokenType::Var),
-        TokenType::Id => {
-          let mut var_declarations = self.variable_declaration();
-          declarations.append(&mut var_declarations);
+      match self.current_token.token_type {
+        TokenType::Procedure => {
+          self.eat(TokenType::Procedure);
+          let proc_name = match self.current_token.value {
+            TokenValue::String(s) => s,
+            _ => panic!("Unexpected token type after procedure declaration.")
+          };
+          self.eat(TokenType::Id);
           self.eat(TokenType::Semi);
+          let block_node = self.block();
+          let proc_decl = Box::new(ProcedureDecl {
+            name: proc_name,
+            block: block_node
+          });
+          declarations.push(proc_decl);
+          self.eat(TokenType::Semi);  
         },
         _ => break
       }
     }
-    return declarations;
+    return declarations
   }
 
   fn variable_declaration(&mut self) -> Vec<Box<dyn AstNode>> {
@@ -857,6 +896,15 @@ impl AstNode for Program {
   }
   fn visit_node_for_symbols(&self) { 
     self.block.visit_node_for_symbols()
+  }
+}
+
+impl AstNode for ProcedureDecl {
+  fn visit_node(&self) -> TokenValue {
+    return TokenValue::None;
+  }
+  fn visit_node_for_symbols(&self) { 
+    ()
   }
 }
 
