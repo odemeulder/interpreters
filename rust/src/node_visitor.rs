@@ -8,17 +8,62 @@ use crate::parser::*;
 use crate::symbol_table;
 use crate::symbol_table::Symbol;
 use crate::symbol_table::VarSymbol;
-use crate::global_scope;
+use crate::scope;
 
 pub trait AstNode {
-  fn visit(&self) -> TokenValue;
-  fn visit_for_sem_analysis(&self);
+  fn visit(&self, scope: &mut scope::Scope) -> TokenValue;
+  fn visit_for_sem_analysis(&self, scope: &mut scope::Scope);
+}
+
+impl AstNode for Program {
+  fn visit(&self, _: &mut scope::Scope) -> TokenValue {
+    let mut new_scope = scope::Scope::new(1, "global");
+    let rv = self.block.visit(&mut new_scope);
+    new_scope.display();
+    return rv;
+  }
+  fn visit_for_sem_analysis(&self, scope: &mut scope::Scope) {
+    self.block.visit_for_sem_analysis(scope)
+  }
+}
+
+impl AstNode for Block {
+  fn visit(&self, scope: &mut scope::Scope) -> TokenValue {
+    self.compound_statement.visit(scope)
+  }
+  fn visit_for_sem_analysis(&self, scope: &mut scope::Scope) { 
+    for decl in &self.declarations {
+      decl.visit_for_sem_analysis(scope);
+    }
+    self.compound_statement.visit_for_sem_analysis(scope)
+  }
+}
+
+impl AstNode for Compound {
+  fn visit(&self, scope: &mut scope::Scope) -> TokenValue {
+    for statement in &self.children {
+      statement.visit(scope);
+    }
+    return TokenValue::None;
+  }
+  fn visit_for_sem_analysis(&self, scope: &mut scope::Scope) { 
+    for statement in &self.children {
+      statement.visit_for_sem_analysis(scope);
+    }    
+  }
+}
+
+impl AstNode for ProcedureDecl {
+  fn visit(&self, _: &mut scope::Scope) -> TokenValue {
+    return TokenValue::None;
+  }
+  fn visit_for_sem_analysis(&self, _: &mut scope::Scope) { }
 }
 
 impl AstNode for BinOp {
-  fn visit(&self) -> TokenValue {
-    let left = self.left.visit();
-    let right = self.right.visit();
+  fn visit(&self, scope: &mut scope::Scope) -> TokenValue {
+    let left = self.left.visit(scope);
+    let right = self.right.visit(scope);
     return match (left, right) {
       (TokenValue::Int(l), TokenValue::Int(r)) => match self.token.token_type {
                               TokenType::Plus  => TokenValue::Int(l+r),
@@ -39,14 +84,14 @@ impl AstNode for BinOp {
     }
 
   }
-  fn visit_for_sem_analysis(&self) {
-    self.left.visit_for_sem_analysis();
-    self.right.visit_for_sem_analysis();
+  fn visit_for_sem_analysis(&self, scope: &mut scope::Scope) {
+    self.left.visit_for_sem_analysis(scope);
+    self.right.visit_for_sem_analysis(scope);
   }
 }
 
 impl AstNode for Num {
-  fn visit(&self) -> TokenValue {
+  fn visit(&self, _: &mut scope::Scope) -> TokenValue {
     return match self.value {
       TokenValue::None => panic!("Invalid node"),
       TokenValue::Int(i) => TokenValue::Int(i),
@@ -54,12 +99,12 @@ impl AstNode for Num {
       _ => panic!("Invalid node")
     }
   }
-  fn visit_for_sem_analysis(&self) { }
+  fn visit_for_sem_analysis(&self, _: &mut scope::Scope) { }
 }
 
 impl AstNode for UnaryOp {
-  fn visit(&self) -> TokenValue {
-    match self.expr.visit() {
+  fn visit(&self, scope: &mut scope::Scope) -> TokenValue {
+    match self.expr.visit(scope) {
       TokenValue::None => TokenValue::None,
       TokenValue::Int(i) => match self.token.token_type {
         TokenType::Plus  => TokenValue::Int(i),
@@ -74,51 +119,38 @@ impl AstNode for UnaryOp {
       _ => panic!("Invalid unary operator")
     }
   }
-  fn visit_for_sem_analysis(&self) {
-    self.expr.visit_for_sem_analysis();
-  }
-}
-
-impl AstNode for Compound {
-  fn visit(&self) -> TokenValue {
-    for statement in &self.children {
-      statement.visit();
-    }
-    return TokenValue::None;
-  }
-  fn visit_for_sem_analysis(&self) { 
-    for statement in &self.children {
-      statement.visit_for_sem_analysis();
-    }    
+  fn visit_for_sem_analysis(&self, scope: &mut scope::Scope) {
+    self.expr.visit_for_sem_analysis(scope);
   }
 }
 
 impl AstNode for Assign {
-  fn visit(&self) -> TokenValue {
+  fn visit(&self, scope: &mut scope::Scope) -> TokenValue {
     let var_name = &self.left;
-    let right = self.right.visit();
-    global_scope::insert(var_name, right);
+    let right = self.right.visit(scope);
+    scope.insert(var_name, right);
     TokenValue::None 
   }
-  fn visit_for_sem_analysis(&self) { 
+  fn visit_for_sem_analysis(&self, scope: &mut scope::Scope) { 
     let var_name = self.left;
     let var_symbol = symbol_table::lookup_symbol(var_name);
     if let symbol_table::Symbol::None = var_symbol {
       panic!("Assign to undeclared variable name: {}", var_name)
     }
-    self.right.visit_for_sem_analysis()
+    self.right.visit_for_sem_analysis(scope)
    }
 }
 
 impl AstNode for Var {
-  fn visit(&self) -> TokenValue {
+  fn visit(&self, scope: &mut scope::Scope) -> TokenValue {
     let var_name = match self.value {
       TokenValue::String(s) => s,
       _ => panic!("Invalid variable name")
     };
-    return global_scope::retrieve(var_name);
+    let retval = scope.lookup(var_name);
+    return retval;
   }
-  fn visit_for_sem_analysis(&self) {
+  fn visit_for_sem_analysis(&self, scope: &mut scope::Scope) {
     let var_name = match self.value {
       TokenValue::String(s) => s,
       _ => panic!("Cannot lookup variable, invalid var name type")
@@ -130,23 +162,11 @@ impl AstNode for Var {
   }
 }
 
-impl AstNode for Block {
-  fn visit(&self) -> TokenValue {
-    self.compound_statement.visit()
-  }
-  fn visit_for_sem_analysis(&self) { 
-    for decl in &self.declarations {
-      decl.visit_for_sem_analysis();
-    }
-    self.compound_statement.visit_for_sem_analysis()
- }
-}
-
 impl AstNode for VarDecl {
-  fn visit(&self) -> TokenValue {
+  fn visit(&self, _: &mut scope::Scope) -> TokenValue {
     TokenValue::None  
   }
-  fn visit_for_sem_analysis(&self) { 
+  fn visit_for_sem_analysis(&self, _: &mut scope::Scope) { 
     let type_name = match self.type_node.value {
       TokenValue::String(s) => s,
       _ => panic!("Cannot declare variable, invalid type name")
@@ -172,31 +192,16 @@ impl AstNode for VarDecl {
 }
 
 impl AstNode for Type {
-  fn visit(&self) -> TokenValue {
+  fn visit(&self, _: &mut scope::Scope) -> TokenValue {
     TokenValue::None  
   }
-  fn visit_for_sem_analysis(&self) { }
+  fn visit_for_sem_analysis(&self, _: &mut scope::Scope) { }
 }
 
-impl AstNode for Program {
-  fn visit(&self) -> TokenValue {
-    return self.block.visit();
-  }
-  fn visit_for_sem_analysis(&self) {
-    self.block.visit_for_sem_analysis()
-  }
-}
-
-impl AstNode for ProcedureDecl {
-  fn visit(&self) -> TokenValue {
-    return TokenValue::None;
-  }
-  fn visit_for_sem_analysis(&self) { }
-}
 
 impl AstNode for NoOp {
-  fn visit(&self) -> TokenValue {
+  fn visit(&self, _: &mut scope::Scope) -> TokenValue {
     TokenValue::None 
   }
-  fn visit_for_sem_analysis(&self) { }
+  fn visit_for_sem_analysis(&self, _: &mut scope::Scope) { }
 }

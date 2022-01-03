@@ -4,6 +4,7 @@
 
 use crate::parser::Parser;
 use crate::symbol_table;
+use crate::scope;
 
 pub struct SemanticAnalyzer {
   pub parser: Parser
@@ -20,7 +21,8 @@ impl SemanticAnalyzer {
 
   pub fn analyze(&mut self) {
     let node = self.parser.parse();
-    node.visit_for_sem_analysis();
+    let mut scope = scope::Scope::new(0, "initial");
+    node.visit_for_sem_analysis(&mut scope);
   }
 }
 

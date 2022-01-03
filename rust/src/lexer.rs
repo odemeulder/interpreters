@@ -47,6 +47,12 @@ pub enum TokenValue {
   Float(f64),
 }
 
+impl fmt::Display for TokenValue {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "{}", self)
+  }
+}
+
 #[derive(Clone, Debug)]
 pub struct Token {
   pub token_type: TokenType,

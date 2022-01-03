@@ -5,22 +5,18 @@ use std::fs;
 
 mod lexer;
 mod symbol_table;
-mod global_scope;
 mod parser;
 mod node_visitor;
 mod interpreter;
 mod semantic_analyzer;
+mod scope;
 
 //--------------------------------------------------------------------
 //               M A I N
 //--------------------------------------------------------------------
 
-fn insert() {
-  global_scope::insert("olivier", lexer::TokenValue::Int(48));
-}
 
 fn main() {
-  insert();
 
   println!("ODM Interpreter");
   let progr = fs::read_to_string("program10.txt").unwrap();
@@ -36,6 +32,5 @@ fn main() {
 
   let mut interpreter = interpreter::build_interpreter(parser);
   let result = interpreter.interpret();
-  global_scope::display();
   println!("Result: {:#?}", result);  
 }
