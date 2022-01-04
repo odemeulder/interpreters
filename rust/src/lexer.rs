@@ -115,7 +115,7 @@ impl Lexer {
     reserved_keywords.insert(String::from("INTEGER"), build_token(TokenType::Integer, TokenValue::String("INTEGER")));
     reserved_keywords.insert(String::from("REAL"), build_token(TokenType::Real, TokenValue::String("REAL")));
     reserved_keywords.insert(String::from("DIV"), build_token(TokenType::IntegerDiv, TokenValue::String("DIV")));
-    reserved_keywords.insert(String::from("PROCEDURE"), build_token(TokenType::IntegerDiv, TokenValue::String("PROCEDURE")));
+    reserved_keywords.insert(String::from("PROCEDURE"), build_token(TokenType::Procedure, TokenValue::String("PROCEDURE")));
     let mut result = String::default();
     loop {
       match self.current_char {
@@ -128,7 +128,7 @@ impl Lexer {
     }
     let _result = result.clone();
     let s_slice: &str = Box::leak(_result.into_boxed_str()); // Strange concoction to convert String to &'static str
-    return match reserved_keywords.get(&result) {
+    return match reserved_keywords.get(&result.to_uppercase()) {
       None => build_token(TokenType::Id, TokenValue::String(s_slice)),
       Some(token) => token.clone()
     }

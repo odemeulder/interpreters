@@ -3,8 +3,6 @@
 //--------------------------------------------------------------------
 
 use std::fmt;
-use std::collections::HashMap;
-use std::sync::Mutex;
 
 #[derive(Clone, Debug)]
 pub struct BuiltinTypeSymbol {
@@ -12,7 +10,7 @@ pub struct BuiltinTypeSymbol {
 }
 
 impl BuiltinTypeSymbol {
-  fn new(s: &'static str) -> BuiltinTypeSymbol {
+  pub fn new(s: &'static str) -> BuiltinTypeSymbol {
     BuiltinTypeSymbol {
       name: s,
     }
@@ -34,11 +32,11 @@ impl VarSymbol {
 }
 
 #[derive(Clone, Debug)]
-struct ProcSymbol {
+pub struct ProcSymbol {
   name: &'static str,
 }
 impl ProcSymbol {
-  fn new(s: &'static str) -> ProcSymbol {
+  pub fn new(s: &'static str) -> ProcSymbol {
     ProcSymbol {
       name: s
     }
@@ -77,31 +75,4 @@ pub enum Symbol {
   Builtin(BuiltinTypeSymbol),
   Var(VarSymbol),
   Proc(ProcSymbol)
-}
-
-lazy_static! {
-  static ref SYMBOL_TABLE: Mutex<HashMap<&'static str, Symbol>> = Mutex::new(HashMap::new());
-}
-
-pub fn define_symbol(sym: Symbol) -> () {
-  let mut map = SYMBOL_TABLE.lock().unwrap();
-  let n = sym.clone().get_name();
-  map.insert(n, sym);
-}
-
-pub fn init_symbol_table() -> () {
-  define_symbol(Symbol::Builtin(BuiltinTypeSymbol::new("INTEGER")));
-  define_symbol(Symbol::Builtin(BuiltinTypeSymbol::new("REAL")));
-}
-
-pub fn lookup_symbol(s: &'static str) -> Symbol {
-  let map = SYMBOL_TABLE.lock().unwrap();
-  match map.get(s) {
-    None => Symbol::None,
-    Some(s) => s.clone() 
-  }
-}
-
-pub fn display() {
-  println!("Symbol Table {:#?}", SYMBOL_TABLE.lock().unwrap());
 }

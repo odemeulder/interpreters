@@ -1,29 +1,33 @@
 use std::collections::HashMap;
-use crate::lexer::TokenValue;
+use crate::symbol::Symbol;
+use crate::symbol::BuiltinTypeSymbol;
 
 pub struct Scope {
-  symbol_table: HashMap<&'static str, TokenValue>,
-  level: i32,
+  symbol_table: HashMap<&'static str, Symbol>,
+  pub level: i32,
   name: &'static str
 }
 
 impl Scope {
 
   pub fn new(level: i32, name: &'static str) -> Scope {
+    let mut map: HashMap<&'static str, Symbol> = HashMap::new();
+    map.insert("INTEGER", Symbol::Builtin(BuiltinTypeSymbol::new("INTEGER")));
+    map.insert("REAL", Symbol::Builtin(BuiltinTypeSymbol::new("REAL")));
     return Scope {
-      symbol_table: HashMap::new(),
+      symbol_table: map,
       level,
       name
     }
   }
 
-  pub fn insert(&mut self, s: &'static str, symbol: TokenValue) {
+  pub fn insert(&mut self, s: &'static str, symbol: Symbol) {
     &self.symbol_table.insert(s, symbol);
   }
 
-  pub fn lookup(&mut self, s: &'static str) -> TokenValue {
+  pub fn lookup(&mut self, s: &'static str) -> Symbol {
     match self.symbol_table.get(s) {
-      None => TokenValue::None,
+      None => Symbol::None,
       Some(s) => s.clone()
     }
   }

@@ -3,7 +3,6 @@
 //--------------------------------------------------------------------
 
 use crate::parser::Parser;
-use crate::symbol_table;
 use crate::scope;
 
 pub struct SemanticAnalyzer {
@@ -13,7 +12,6 @@ pub struct SemanticAnalyzer {
 impl SemanticAnalyzer {
   
   pub fn new(parser: Parser) -> SemanticAnalyzer {
-    symbol_table::init_symbol_table();
     SemanticAnalyzer {
       parser
     }
