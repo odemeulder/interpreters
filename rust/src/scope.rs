@@ -5,7 +5,8 @@ use crate::symbol::BuiltinTypeSymbol;
 pub struct Scope {
   symbol_table: HashMap<&'static str, Symbol>,
   pub level: i32,
-  name: &'static str
+  pub name: &'static str,
+  // pub enclosing_scope: Option<Box<&'a mut Scope<'a>>>
 }
 
 impl Scope {
@@ -17,7 +18,7 @@ impl Scope {
     return Scope {
       symbol_table: map,
       level,
-      name
+      name,
     }
   }
 

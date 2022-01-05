@@ -178,9 +178,6 @@ impl AstNode for VarDecl {
       TokenValue::String(s) => s,
       _ => panic!("Cannot declare variable, invalid type name")
     };
-    println!("{}", type_name);
-    scope.display();
-    println!("{:#?}", scope.lookup(type_name));
     let type_symbol = match scope.lookup(type_name) {
       Symbol::Builtin(b) => b,
       s => { panic!("Cannot declare variable, invalid built in {:#?}", s); }
