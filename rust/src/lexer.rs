@@ -71,6 +71,8 @@ pub struct Lexer {
   text: String,
   pos: usize,
   current_char: Option<char>,
+  line_no: u32,
+  col_no: u32,
 }
 
 pub fn build_lexer(_text: String) -> Lexer {
@@ -79,21 +81,37 @@ pub fn build_lexer(_text: String) -> Lexer {
     text: _text,
     pos: 0,
     current_char: first_char,
+    line_no: 0,
+    col_no: 0,
   }
+}
+
+macro_rules! hashmap {
+  ($( $key: expr => $val: expr ),*) => {{
+       let mut map = HashMap::new();
+       $( map.insert(String::from($key), build_token($val, TokenValue::String($key))); )*
+       map
+  }}
 }
 
 impl Lexer {
   
   fn error(&self) ->() {
-    panic!("Invalid character {:#?}", self.current_char)
+    panic!("Invalid character {:?} line: {:?} col: {:?}", self.current_char, self.line_no, self.col_no)
   }
 
   fn advance(&mut self) -> () {
+    if self.current_char == Some('\n') {
+      self.line_no += 1;
+      self.col_no = 0;
+    }
+
     self.pos += 1;
     if self.pos > self.text.chars().count() - 1 {
       self.current_char = None;
     } else {
       self.current_char = Some(self.text.chars().nth(self.pos).unwrap());
+      self.col_no += 1;
     }
   }
 
@@ -107,15 +125,16 @@ impl Lexer {
   }
 
   fn _id(&mut self) -> Token {
-    let mut reserved_keywords: HashMap<String, Token> = HashMap::new();
-    reserved_keywords.insert(String::from("BEGIN"), build_token(TokenType::Begin, TokenValue::String("BEGIN")));
-    reserved_keywords.insert(String::from("END"), build_token(TokenType::End, TokenValue::String("END")));
-    reserved_keywords.insert(String::from("PROGRAM"), build_token(TokenType::Program, TokenValue::String("PROGRAM")));
-    reserved_keywords.insert(String::from("VAR"), build_token(TokenType::Var, TokenValue::String("VAR")));
-    reserved_keywords.insert(String::from("INTEGER"), build_token(TokenType::Integer, TokenValue::String("INTEGER")));
-    reserved_keywords.insert(String::from("REAL"), build_token(TokenType::Real, TokenValue::String("REAL")));
-    reserved_keywords.insert(String::from("DIV"), build_token(TokenType::IntegerDiv, TokenValue::String("DIV")));
-    reserved_keywords.insert(String::from("PROCEDURE"), build_token(TokenType::Procedure, TokenValue::String("PROCEDURE")));
+    let keywords = hashmap![
+      "BEGIN"     => TokenType::Begin,
+      "END"       => TokenType::End,
+      "PROGRAM"   => TokenType::Program,
+      "VAR"       => TokenType::Var,
+      "INTEGER"   => TokenType::Integer,
+      "REAL"      => TokenType::Real,
+      "DIV"       => TokenType::IntegerDiv,
+      "PROCEDURE" => TokenType::Procedure
+    ];
     let mut result = String::default();
     loop {
       match self.current_char {
@@ -128,7 +147,7 @@ impl Lexer {
     }
     let _result = result.clone();
     let s_slice: &str = Box::leak(_result.into_boxed_str()); // Strange concoction to convert String to &'static str
-    return match reserved_keywords.get(&result.to_uppercase()) {
+    return match keywords.get(&result.to_uppercase()) {
       None => build_token(TokenType::Id, TokenValue::String(s_slice)),
       Some(token) => token.clone()
     }
