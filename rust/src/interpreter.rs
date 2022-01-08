@@ -20,9 +20,9 @@ pub fn build_interpreter(parser: Parser) -> Interpreter {
 impl Interpreter {
   pub fn interpret(&mut self) -> TokenValue {
     let tree = &self.parser.parse();
-    let mut scope = scope::Scope::new(0, "initial");
-    let rv = tree.visit(&mut scope);
-    scope.display();
+    let mut scope_stack = scope::ScopesStack::new();
+    let rv = tree.visit(&mut scope_stack);
+    scope_stack.display();
     return rv;
   }
 }
