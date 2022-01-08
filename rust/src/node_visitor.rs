@@ -224,6 +224,18 @@ impl AstNode for Param {
   }
 }
 
+impl AstNode for ProcCall {
+  
+fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue { 
+  TokenValue::None
+}
+fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
+  for arg in &self.args {
+    arg.visit_for_sem_analysis(scope_stack);
+  }  
+}
+}
+
 impl AstNode for Type {
   fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue {
     TokenValue::None  

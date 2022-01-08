@@ -198,6 +198,10 @@ impl Lexer {
     };
   }
 
+  pub fn get_curr_char(&mut self) -> Option<char> {
+    self.current_char
+  }
+
   pub fn get_next_token(&mut self) -> Token {
     loop {
       match self.current_char {
@@ -208,6 +212,19 @@ impl Lexer {
           self.skip_comment();
         }
         Some(c) if c.is_digit(10) => return self.number(),
+        Some(c) if c.is_alphanumeric() => {
+          return self._id(); 
+        },
+        Some(c) if c == ':' => {
+          if let Some('=') = &self.peek() {
+            self.advance(); 
+            self.advance();
+            return build_token(TokenType::Assign, TokenValue::String(":="))  
+          } else {
+            self.advance(); 
+            return build_token(TokenType::Colon, TokenValue::String(":"))  
+          }
+        },
         Some(c) if c == '+' => {
           self.advance(); 
           return build_token(TokenType::Plus, TokenValue::String("+"))
@@ -231,19 +248,6 @@ impl Lexer {
         Some(c) if c == ')' => {
           self.advance(); 
           return build_token(TokenType::Rparen, TokenValue::String(")"))
-        },
-        Some(c) if c.is_alphanumeric() => {
-          return self._id(); 
-        },
-        Some(c) if c == ':' => {
-          if let Some('=') = &self.peek() {
-            self.advance(); 
-            self.advance();
-            return build_token(TokenType::Assign, TokenValue::String(":="))  
-          } else {
-            self.advance(); 
-            return build_token(TokenType::Colon, TokenValue::String(":"))  
-          }
         },
         Some(c) if c == ';' => {
           self.advance(); 

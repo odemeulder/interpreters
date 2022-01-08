@@ -74,6 +74,12 @@ pub struct Param {
   pub type_node: Type
 }
 
+pub struct ProcCall {
+  pub proc_name: &'static str,
+  pub args: Vec<Box<dyn AstNode>>,
+  pub token: Token
+}
+
 pub struct NoOp;
 
 // Parser
@@ -216,9 +222,7 @@ impl Parser {
   }
 
   fn declarations(&mut self) -> Vec<Box<dyn AstNode>>  {
-    /* declarations : VAR (variable_declaration SEMI)+
-                    | (PROCEDURE ID (LPAREN formal_parameter_list RPAREN)? SEMI block SEMI)*
-                    | empty 
+    /* declarations : (VAR (variable_declaration SEMI)+)? procedure_declaration*
     */
     let mut declarations: Vec<Box<dyn AstNode>> = Vec::new();
     if self.current_token.token_type == TokenType::Var {
@@ -237,34 +241,44 @@ impl Parser {
     loop {
       match self.current_token.token_type {
         TokenType::Procedure => {
-          self.eat(TokenType::Procedure);
-          let proc_name = match self.current_token.value {
-            TokenValue::String(s) => s,
-            _ => panic!("Unexpected token type after procedure declaration.")
-          };
-          self.eat(TokenType::Id);
-
-          let mut params: Vec<Box<dyn AstNode>> = Vec::new();
-          if self.current_token.token_type == TokenType::Lparen {
-            self.eat(TokenType::Lparen);
-            params = self.formal_parameter_list();
-            self.eat(TokenType::Rparen);
-          }
-
-          self.eat(TokenType::Semi);
-          let block_node = self.block();
-          let proc_decl = Box::new(ProcedureDecl {
-            name: proc_name,
-            block: block_node,
-            params: params
-          });
-          declarations.push(proc_decl);
-          self.eat(TokenType::Semi);  
+          let mut proc_declarations = self.procedure_declarations();
+          declarations.append(&mut proc_declarations);
         },
         _ => break
       }
     }
     return declarations
+  }
+
+  fn procedure_declarations(&mut self) -> Vec<Box<dyn AstNode>> {
+    /* procedure_declaration :
+         PROCEDURE ID (LPAREN formal_parameter_list RPAREN)? SEMI block SEMI
+    */
+    let mut declarations: Vec<Box<dyn AstNode>> = Vec::new();
+    self.eat(TokenType::Procedure);
+    let proc_name = match self.current_token.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Unexpected token type after procedure declaration.")
+    };
+    self.eat(TokenType::Id);
+
+    let mut params: Vec<Box<dyn AstNode>> = Vec::new();
+    if self.current_token.token_type == TokenType::Lparen {
+      self.eat(TokenType::Lparen);
+      params = self.formal_parameter_list();
+      self.eat(TokenType::Rparen);
+    }
+
+    self.eat(TokenType::Semi);
+    let block_node = self.block();
+    let proc_decl = Box::new(ProcedureDecl {
+      name: proc_name,
+      block: block_node,
+      params: params
+    });
+    declarations.push(proc_decl);
+    self.eat(TokenType::Semi);  
+    return declarations;
   }
 
   fn formal_parameter_list(&mut self) -> Vec<Box<dyn AstNode>> {
@@ -379,11 +393,14 @@ impl Parser {
   }
 
   fn statement(&mut self) -> Box<dyn AstNode> {
-    // statement : compound_statement
-    //           | assignment_statement
-    //           | empty
+    /* statement :  compound_statement
+                  | proc_call_statement
+                  | assignment_statement
+                  | empty
+    */
     match self.current_token.token_type {
       TokenType::Begin => self.compound_statement(),
+      TokenType::Id if self.lexer.get_curr_char() == Some('(') => self.proccall_statement(), // hacky
       TokenType::Id => self.assignment_statement(),
       _ => self.empty()    
     }
@@ -410,6 +427,36 @@ impl Parser {
     });
     self.eat(TokenType::Id);
     return node;
+  }
+
+  fn proccall_statement(&mut self) -> Box<dyn AstNode> {
+    /* proccall_statement : ID LPAREN (expr (COMMA expr)*)? RPAREN */
+    let proc_name = match self.current_token.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Parser error: Token type error for proc call")
+    };
+    self.eat(TokenType::Id);
+    self.eat(TokenType::Lparen);
+    let mut args: Vec<Box<dyn AstNode>> = Vec::new();
+    loop {
+      match self.current_token.token_type {
+        TokenType::Rparen => { 
+          self.eat(TokenType::Rparen);
+          break; 
+        }
+        TokenType::Comma => { self.eat(TokenType::Comma); }
+        _ => {
+          let node = self.expr();
+          args.push(node);
+        }
+      }
+    }
+    let return_node = Box::new(ProcCall {
+      proc_name,
+      args,
+      token: self.current_token.clone()
+    });
+    return return_node;
   }
 
   fn empty(&mut self) -> Box<dyn AstNode> {
