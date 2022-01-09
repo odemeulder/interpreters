@@ -14,6 +14,7 @@ use crate::global_memory;
 pub trait AstNode {
   fn visit(&self, scope_stack: &mut scope::ScopesStack) -> TokenValue;
   fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack);
+  fn to_var_symbol(&self, _: &mut scope::ScopesStack) -> Result<VarSymbol, &'static str> { Err("To_var_symbol: Undefined operation") }
 }
 
 impl AstNode for Program {
@@ -53,13 +54,20 @@ impl AstNode for Compound {
   }
 }
 
+
 impl AstNode for ProcedureDecl {
   fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue {
     return TokenValue::None;
   }
   fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
     let proc_name = self.name;
-    let proc_symbol = Symbol::Proc(ProcSymbol::new(proc_name));
+    let mut param_symbols: Vec<VarSymbol> = Vec::new();
+    for param in &self.params {
+      if let Ok(param_var_symbol) = param.to_var_symbol(scope_stack) {
+        param_symbols.push(param_var_symbol);
+      } 
+    }
+    let proc_symbol = Symbol::Proc(ProcSymbol::new(proc_name, param_symbols));
     scope_stack.insert(proc_name, proc_symbol);
     scope_stack.push_scope(proc_name);
 
@@ -169,33 +177,41 @@ impl AstNode for Var {
   }
 }
 
+
 impl AstNode for VarDecl {
+
   fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue {
     TokenValue::None  
   }
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
+
+  fn to_var_symbol(&self, scope_stack: &mut scope::ScopesStack) -> Result<VarSymbol, &'static str> {
     let type_name = match self.type_node.value {
       TokenValue::String(s) => s,
-      _ => panic!("Cannot declare variable, invalid type name")
+      _ => return Err("Cannot declare variable, invalid type name")
     };
     let type_symbol = match scope_stack.retrieve(type_name, false) {
       Symbol::Builtin(b) => b,
-      s => { panic!("Cannot declare variable, invalid built in {:#?}", s); }
+      _ => return Err("Cannot declare variable, invalid built in type")
     };
     let var_name = match self.var_node.value {
       TokenValue::String(s) => s,
-      _ => panic!("Cannot declare variable, invalid var name")
+      _ => return Err("Cannot declare variable, invalid var name")
     };
-    let var_symbol = VarSymbol::new(var_name, type_symbol);
-    // prevent addition of duplicate symbols
-    // let var_symbol_lookup = symbol_table::lookup_symbol(var_name);
+    return Ok(VarSymbol::new(var_name, type_symbol));
+  }
+
+  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
+    let var_symbol = match self.to_var_symbol(scope_stack) {
+      Ok(s) => s,
+      Err(_) => { return; } // return early
+    };
+    let var_name = var_symbol.name;
     let var_symbol_lookup = scope_stack.retrieve(var_name, true);
     match var_symbol_lookup {
       Symbol::None => (),
       _ => panic!("Attempt to declare duplicate variable")
     }
     // insert into symbol table
-    // symbol_table::define_symbol(Symbol::Var(var_symbol));
     scope_stack.insert(var_name, Symbol::Var(var_symbol));
   }
 }
@@ -205,8 +221,8 @@ impl AstNode for Param {
   fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue { 
     return TokenValue::None; // to do
   }
-  
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
+
+  fn to_var_symbol(&self, scope_stack: &mut scope::ScopesStack) -> Result<VarSymbol, &'static str> {
     let param_type_name = match (&self.type_node.token.token_type, &self.type_node.token.value) {
       (TokenType::Integer|TokenType::Real, TokenValue::String(s)) => s,
       _ => panic!("Unexpected token.")
@@ -219,21 +235,39 @@ impl AstNode for Param {
       (TokenType::Integer|TokenType::Real, TokenValue::String(s)) => s,
       _ => panic!("Unexpected token.")
     };
-    let var_symbol = Symbol::Var(VarSymbol::new(param_name, param_type));
-    scope_stack.insert(param_name, var_symbol);
+    let var_symbol = VarSymbol::new(param_name, param_type);
+    return Ok(var_symbol);
+  }
+  
+  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
+    let var_symbol = self.to_var_symbol(scope_stack).unwrap();
+    let param_name = var_symbol.name;
+    scope_stack.insert(param_name, Symbol::Var(var_symbol));
   }
 }
 
 impl AstNode for ProcCall {
   
-fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue { 
-  TokenValue::None
-}
-fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
-  for arg in &self.args {
-    arg.visit_for_sem_analysis(scope_stack);
-  }  
-}
+  fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue { 
+    TokenValue::None
+  }
+  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
+    for arg in &self.args {
+      arg.visit_for_sem_analysis(scope_stack);
+    }
+    // code to verify that number of args = number of params .
+    let proc_name = self.proc_name;
+    let proc_symbol = match scope_stack.retrieve(proc_name, false) {
+      Symbol::Proc(proc) => proc,
+      _ => panic!("There should be a proc symbol defined for {}", proc_name)
+    };
+    let num_args = self.args.len();
+    let num_params = proc_symbol.params.len();
+    if num_args != num_params {
+      panic!("Incorrect number of arguments for procedure call, expected {}, got {}", num_params, num_args);
+    }
+
+  }
 }
 
 impl AstNode for Type {

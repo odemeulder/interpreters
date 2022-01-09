@@ -19,7 +19,7 @@ impl BuiltinTypeSymbol {
 
 #[derive(Clone, Debug)]
 pub struct VarSymbol {
-  name: &'static str,
+  pub name: &'static str,
   symbol_type: BuiltinTypeSymbol,
 }
 impl VarSymbol {
@@ -34,11 +34,13 @@ impl VarSymbol {
 #[derive(Clone, Debug)]
 pub struct ProcSymbol {
   name: &'static str,
+  pub params: Vec<VarSymbol>
 }
 impl ProcSymbol {
-  pub fn new(s: &'static str) -> ProcSymbol {
+  pub fn new(s: &'static str, params: Vec<VarSymbol>) -> ProcSymbol {
     ProcSymbol {
-      name: s
+      name: s,
+      params
     }
   }
 }
