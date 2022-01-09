@@ -9,17 +9,25 @@ use crate::symbol::Symbol;
 use crate::symbol::VarSymbol;
 use crate::symbol::ProcSymbol;
 use crate::scope;
+use crate::call_stack::CallStack;
+use crate::call_stack::StackFrame;
+use crate::call_stack::StackFrameType;
 use crate::global_memory;
 
 pub trait AstNode {
-  fn visit(&self, scope_stack: &mut scope::ScopesStack) -> TokenValue;
+  fn visit(&self, stack: &mut CallStack) -> TokenValue;
   fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack);
   fn to_var_symbol(&self, _: &mut scope::ScopesStack) -> Result<VarSymbol, &'static str> { Err("To_var_symbol: Undefined operation") }
 }
 
 impl AstNode for Program {
-  fn visit(&self, scope_stack: &mut scope::ScopesStack) -> TokenValue {
-    return self.block.visit(scope_stack);
+  fn visit(&self, stack: &mut CallStack) -> TokenValue {
+    let new_frame = StackFrame::new("Global", 0, StackFrameType::Program);
+    stack.push(new_frame);
+    let ret_val = self.block.visit(stack);
+    stack.display();
+    stack.pop();
+    return ret_val;
   }
   fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) {
     scope_stack.push_scope("global");
@@ -29,8 +37,8 @@ impl AstNode for Program {
 }
 
 impl AstNode for Block {
-  fn visit(&self, scope_stack: &mut scope::ScopesStack) -> TokenValue {
-    self.compound_statement.visit(scope_stack)
+  fn visit(&self, stack: &mut CallStack) -> TokenValue {
+    self.compound_statement.visit(stack)
   }
   fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
     for decl in &self.declarations {
@@ -41,9 +49,9 @@ impl AstNode for Block {
 }
 
 impl AstNode for Compound {
-  fn visit(&self, scope_stack: &mut scope::ScopesStack) -> TokenValue {
+  fn visit(&self, stack: &mut CallStack) -> TokenValue {
     for statement in &self.children {
-      statement.visit(scope_stack);
+      statement.visit(stack);
     }
     return TokenValue::None;
   }
@@ -56,7 +64,7 @@ impl AstNode for Compound {
 
 
 impl AstNode for ProcedureDecl {
-  fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue {
+  fn visit(&self, _: &mut CallStack) -> TokenValue {
     return TokenValue::None;
   }
   fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
@@ -80,9 +88,9 @@ impl AstNode for ProcedureDecl {
 }
 
 impl AstNode for BinOp {
-  fn visit(&self, scope_stack: &mut scope::ScopesStack) -> TokenValue {
-    let left = self.left.visit(scope_stack);
-    let right = self.right.visit(scope_stack);
+  fn visit(&self, stack: &mut CallStack) -> TokenValue {
+    let left = self.left.visit(stack);
+    let right = self.right.visit(stack);
     return match (left, right) {
       (TokenValue::Int(l), TokenValue::Int(r)) => match self.token.token_type {
                               TokenType::Plus  => TokenValue::Int(l+r),
@@ -99,7 +107,7 @@ impl AstNode for BinOp {
                               TokenType::FloatDiv   => TokenValue::Float(l/r), 
                               _ => panic!("Unexpected binary operator"),
                             },
-      _ => panic!("Unexpected token")
+      (l, r) => panic!("Unexpected token left: {:#?}, right: {:#?}, token_type: {:#?}", l, r, self.token.token_type)
     }
 
   }
@@ -110,7 +118,7 @@ impl AstNode for BinOp {
 }
 
 impl AstNode for Num {
-  fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue {
+  fn visit(&self, _: &mut CallStack) -> TokenValue {
     return match self.value {
       TokenValue::None => panic!("Invalid node"),
       TokenValue::Int(i) => TokenValue::Int(i),
@@ -122,8 +130,8 @@ impl AstNode for Num {
 }
 
 impl AstNode for UnaryOp {
-  fn visit(&self, scope_stack: &mut scope::ScopesStack) -> TokenValue {
-    match self.expr.visit(scope_stack) {
+  fn visit(&self, stack: &mut CallStack) -> TokenValue {
+    match self.expr.visit(stack) {
       TokenValue::None => TokenValue::None,
       TokenValue::Int(i) => match self.token.token_type {
         TokenType::Plus  => TokenValue::Int(i),
@@ -144,26 +152,26 @@ impl AstNode for UnaryOp {
 }
 
 impl AstNode for Assign {
-  fn visit(&self, scope_stack: &mut scope::ScopesStack) -> TokenValue {
+  fn visit(&self, stack: &mut CallStack) -> TokenValue {
     let var_name = &self.left;
-    let right = self.right.visit(scope_stack);
-    global_memory::insert(var_name, right);
+    let right = self.right.visit(stack);
+    stack.insert(var_name, right.clone());
     return TokenValue::None;
   }
   fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
-  self.right.visit_for_sem_analysis(scope_stack);
-  //self.left.visit(scope_stack);
+    self.right.visit_for_sem_analysis(scope_stack);
   }
 }
 
 impl AstNode for Var {
-  fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue {
+  fn visit(&self, stack: &mut CallStack) -> TokenValue {
     let var_name = match self.value {
       TokenValue::String(s) => s,
       _ => panic!("Invalid variable name")
     };
-    let retval = global_memory::get(var_name);
-    return retval;
+    stack.get(var_name)
+    // let retval = global_memory::get(var_name);
+    // return retval;
   }
   fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) {
     let var_name = match self.value {
@@ -180,7 +188,7 @@ impl AstNode for Var {
 
 impl AstNode for VarDecl {
 
-  fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue {
+  fn visit(&self, _: &mut CallStack) -> TokenValue {
     TokenValue::None  
   }
 
@@ -218,7 +226,7 @@ impl AstNode for VarDecl {
 
 impl AstNode for Param {
 
-  fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue { 
+  fn visit(&self, _: &mut CallStack) -> TokenValue { 
     return TokenValue::None; // to do
   }
 
@@ -248,7 +256,7 @@ impl AstNode for Param {
 
 impl AstNode for ProcCall {
   
-  fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue { 
+  fn visit(&self, _: &mut CallStack) -> TokenValue { 
     TokenValue::None
   }
   fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
@@ -271,7 +279,7 @@ impl AstNode for ProcCall {
 }
 
 impl AstNode for Type {
-  fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue {
+  fn visit(&self, _: &mut CallStack) -> TokenValue {
     TokenValue::None  
   }
   fn visit_for_sem_analysis(&self, _: &mut scope::ScopesStack) { }
@@ -279,7 +287,7 @@ impl AstNode for Type {
 
 
 impl AstNode for NoOp {
-  fn visit(&self, _: &mut scope::ScopesStack) -> TokenValue {
+  fn visit(&self, _: &mut CallStack) -> TokenValue {
     TokenValue::None 
   }
   fn visit_for_sem_analysis(&self, _: &mut scope::ScopesStack) { }

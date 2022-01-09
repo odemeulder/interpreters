@@ -4,7 +4,7 @@
 
 use crate::parser::Parser;
 use crate::lexer::TokenValue;
-use crate::scope;
+use crate::call_stack::CallStack;
 
 #[derive(Debug)]
 pub struct Interpreter {
@@ -20,9 +20,9 @@ pub fn build_interpreter(parser: Parser) -> Interpreter {
 impl Interpreter {
   pub fn interpret(&mut self) -> TokenValue {
     let tree = &self.parser.parse();
-    let mut scope_stack = scope::ScopesStack::new();
-    let rv = tree.visit(&mut scope_stack);
-    scope_stack.display();
+    let mut call_stack = CallStack::new();
+    let rv = tree.visit(&mut call_stack);
+    call_stack.display();
     return rv;
   }
 }

@@ -22,7 +22,7 @@ impl ScopesStack {
   }
 
   pub fn pop_scope(&mut self) {
-    self.display();
+    // self.display();
     self.scopes.pop();
   }
 

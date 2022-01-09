@@ -415,10 +415,11 @@ impl Parser {
       TokenValue::String(s) => s,
       _ => panic!("Illegal variable name")
     };
-    return Box::new(Assign {
+    let ret_val = Box::new(Assign {
       left: var_name,
       right: right
-    })
+    });
+    return ret_val;
   }
 
   fn variable(&mut self) -> Box<Var> {
