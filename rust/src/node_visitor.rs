@@ -12,11 +12,10 @@ use crate::scope;
 use crate::call_stack::CallStack;
 use crate::call_stack::StackFrame;
 use crate::call_stack::StackFrameType;
-use crate::global_memory;
 
 pub trait AstNode {
   fn visit(&self, stack: &mut CallStack) -> TokenValue;
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack);
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) -> () {}
   fn to_var_symbol(&self, _: &mut scope::ScopesStack) -> Result<VarSymbol, &'static str> { Err("To_var_symbol: Undefined operation") }
 }
 
@@ -29,7 +28,7 @@ impl AstNode for Program {
     stack.pop();
     return ret_val;
   }
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) {
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) {
     scope_stack.push_scope("global");
     self.block.visit_for_sem_analysis(scope_stack);
     scope_stack.pop_scope();
@@ -40,8 +39,8 @@ impl AstNode for Block {
   fn visit(&self, stack: &mut CallStack) -> TokenValue {
     self.compound_statement.visit(stack)
   }
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
-    for decl in &self.declarations {
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) { 
+    for decl in &mut self.declarations {
       decl.visit_for_sem_analysis(scope_stack);
     }
     self.compound_statement.visit_for_sem_analysis(scope_stack)
@@ -55,19 +54,20 @@ impl AstNode for Compound {
     }
     return TokenValue::None;
   }
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
-    for statement in &self.children {
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) { 
+    for statement in &mut self.children {
       statement.visit_for_sem_analysis(scope_stack);
     }    
   }
 }
 
+use std::rc::Rc;
 
 impl AstNode for ProcedureDecl {
   fn visit(&self, _: &mut CallStack) -> TokenValue {
     return TokenValue::None;
   }
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) { 
     let proc_name = self.name;
     let mut param_symbols: Vec<VarSymbol> = Vec::new();
     for param in &self.params {
@@ -75,11 +75,13 @@ impl AstNode for ProcedureDecl {
         param_symbols.push(param_var_symbol);
       } 
     }
-    let proc_symbol = Symbol::Proc(ProcSymbol::new(proc_name, param_symbols));
-    scope_stack.insert(proc_name, proc_symbol);
+    let proc_block = &self.block;
+    let proc_symbol = ProcSymbol::new(proc_name, param_symbols, proc_block);
+    let symbol = Symbol::Proc(proc_symbol);
+    scope_stack.insert(proc_name, symbol);
     scope_stack.push_scope(proc_name);
 
-    for param in &self.params {
+    for param in &mut self.params {
       param.visit_for_sem_analysis(scope_stack);
     }
     self.block.visit_for_sem_analysis(scope_stack);
@@ -111,7 +113,7 @@ impl AstNode for BinOp {
     }
 
   }
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) {
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) {
     self.left.visit_for_sem_analysis(scope_stack);
     self.right.visit_for_sem_analysis(scope_stack);
   }
@@ -126,7 +128,6 @@ impl AstNode for Num {
       _ => panic!("Invalid node")
     }
   }
-  fn visit_for_sem_analysis(&self, _: &mut scope::ScopesStack) { }
 }
 
 impl AstNode for UnaryOp {
@@ -146,7 +147,7 @@ impl AstNode for UnaryOp {
       _ => panic!("Invalid unary operator")
     }
   }
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) {
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) {
     self.expr.visit_for_sem_analysis(scope_stack);
   }
 }
@@ -158,7 +159,7 @@ impl AstNode for Assign {
     stack.insert(var_name, right.clone());
     return TokenValue::None;
   }
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) { 
     self.right.visit_for_sem_analysis(scope_stack);
   }
 }
@@ -173,7 +174,7 @@ impl AstNode for Var {
     // let retval = global_memory::get(var_name);
     // return retval;
   }
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) {
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) {
     let var_name = match self.value {
       TokenValue::String(s) => s,
       _ => panic!("Cannot lookup variable, invalid var name type")
@@ -208,7 +209,7 @@ impl AstNode for VarDecl {
     return Ok(VarSymbol::new(var_name, type_symbol));
   }
 
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) { 
     let var_symbol = match self.to_var_symbol(scope_stack) {
       Ok(s) => s,
       Err(_) => { return; } // return early
@@ -247,7 +248,7 @@ impl AstNode for Param {
     return Ok(var_symbol);
   }
   
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) { 
     let var_symbol = self.to_var_symbol(scope_stack).unwrap();
     let param_name = var_symbol.name;
     scope_stack.insert(param_name, Symbol::Var(var_symbol));
@@ -256,11 +257,35 @@ impl AstNode for Param {
 
 impl AstNode for ProcCall {
   
-  fn visit(&self, _: &mut CallStack) -> TokenValue { 
+  fn visit(&self, stack: &mut CallStack) -> TokenValue { 
+    let proc_name = self.proc_name;
+    let new_frame = StackFrame::new(proc_name, 2, StackFrameType::Procedure);
+    stack.push(new_frame);
+    let args = &self.args;
+    let params = match &self.proc_symbol{
+      Some(p) => &p.params,
+      None => panic!("Params expected to be defined for proc symbol")
+    };
+    let mut iter = params.iter().zip(args);
+    loop {
+      match iter.next() {
+        Some((var_symbol, var_node)) => {
+          let var_content = var_node.visit(stack);
+          stack.insert(var_symbol.name, var_content)
+        },
+        None => break
+      }
+    }
+
+    stack.display();
+    stack.pop();
+    
     TokenValue::None
   }
-  fn visit_for_sem_analysis(&self, scope_stack: &mut scope::ScopesStack) { 
-    for arg in &self.args {
+
+
+  fn visit_for_sem_analysis(&mut self, scope_stack: &mut scope::ScopesStack) { 
+    for arg in &mut self.args {
       arg.visit_for_sem_analysis(scope_stack);
     }
     // code to verify that number of args = number of params .
@@ -275,6 +300,8 @@ impl AstNode for ProcCall {
       panic!("Incorrect number of arguments for procedure call, expected {}, got {}", num_params, num_args);
     }
 
+    // assign proc symbol to ProcCall object
+    self.proc_symbol = Some(proc_symbol);
   }
 }
 
@@ -282,7 +309,6 @@ impl AstNode for Type {
   fn visit(&self, _: &mut CallStack) -> TokenValue {
     TokenValue::None  
   }
-  fn visit_for_sem_analysis(&self, _: &mut scope::ScopesStack) { }
 }
 
 
@@ -290,5 +316,4 @@ impl AstNode for NoOp {
   fn visit(&self, _: &mut CallStack) -> TokenValue {
     TokenValue::None 
   }
-  fn visit_for_sem_analysis(&self, _: &mut scope::ScopesStack) { }
 }

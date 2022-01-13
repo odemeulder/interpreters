@@ -18,7 +18,7 @@ impl SemanticAnalyzer {
   }
 
   pub fn analyze(&mut self) {
-    let node = self.parser.parse();
+    let mut node = self.parser.parse();
     let mut scope_stack = scope::ScopesStack::new();
     node.visit_for_sem_analysis(&mut scope_stack);
   }

@@ -38,7 +38,7 @@ impl ScopesStack {
     for i in (0..*len).rev() {
       match &self.scopes[i].lookup(s) {
         Symbol::None => (),
-        symbol => return symbol.clone(),
+        symbol => return *symbol,
       }
       if current_scope_only {
         break;
@@ -47,11 +47,11 @@ impl ScopesStack {
     return Symbol::None;
   }
 
-  pub fn display(&mut self) {
-    for i in 0..self.scopes.len() {
-      &self.scopes[i].display();
-    }
-  }
+  // pub fn display(&mut self) {
+  //   for i in 0..self.scopes.len() {
+  //     &self.scopes[i].display();
+  //   }
+  // }
 
 }
 
@@ -81,12 +81,12 @@ impl Scope {
   pub fn lookup(&mut self, s: &'static str) -> Symbol {
     match self.symbol_table.get(s) {
       None => Symbol::None,
-      Some(s) => s.clone()
+      Some(s) => *s
     }
   }
 
-  pub fn display(&mut self) {
-    println!("Scope name {}, level {}", self.name, self.level);
-    println!("{:?}", &self.symbol_table)
-  }
+  // pub fn display(&mut self) {
+  //   println!("Scope name {}, level {}", self.name, self.level);
+  //   println!("{:?}", &self.symbol_table)
+  // }
 }

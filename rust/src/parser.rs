@@ -2,6 +2,7 @@
 //               P A R S E R
 //--------------------------------------------------------------------
 
+use crate::symbol::ProcSymbol;
 use crate::lexer::Lexer;
 use crate::lexer::build_token; // todox
 use crate::lexer::Token;
@@ -77,7 +78,8 @@ pub struct Param {
 pub struct ProcCall {
   pub proc_name: &'static str,
   pub args: Vec<Box<dyn AstNode>>,
-  pub token: Token
+  pub token: Token,
+  pub proc_symbol: Option<ProcSymbol>
 }
 
 pub struct NoOp;
@@ -455,7 +457,8 @@ impl Parser {
     let return_node = Box::new(ProcCall {
       proc_name,
       args,
-      token: self.current_token.clone()
+      token: self.current_token.clone(),
+      proc_symbol: None
     });
     return return_node;
   }

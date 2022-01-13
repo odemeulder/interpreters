@@ -2,6 +2,7 @@
 //               S Y M B O L S
 //--------------------------------------------------------------------
 
+use crate::node_visitor::AstNode;
 use std::fmt;
 
 #[derive(Clone, Debug)]
@@ -31,16 +32,18 @@ impl VarSymbol {
   }
 }
 
-#[derive(Clone, Debug)]
 pub struct ProcSymbol {
+
   name: &'static str,
-  pub params: Vec<VarSymbol>
+  pub params: Vec<VarSymbol>,
+  pub block_ast: Box<dyn AstNode>,
 }
 impl ProcSymbol {
-  pub fn new(s: &'static str, params: Vec<VarSymbol>) -> ProcSymbol {
+  pub fn new(s: &'static str, params: Vec<VarSymbol>, block: Box<dyn AstNode>) -> ProcSymbol {
     ProcSymbol {
       name: s,
-      params
+      params,
+      block_ast: block
     }
   }
 }
@@ -71,7 +74,7 @@ impl fmt::Display for VarSymbol {
   }
 }
 
-#[derive(Clone, Debug)]
+// #[derive(Clone, Debug)]
 pub enum Symbol {
   None,
   Builtin(BuiltinTypeSymbol),
