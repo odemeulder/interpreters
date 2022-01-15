@@ -21,7 +21,8 @@ impl Interpreter {
   pub fn interpret(&mut self) -> TokenValue {
     let tree = &self.parser.parse();
     let mut call_stack = CallStack::new();
-    let rv = tree.visit(&mut call_stack);
+    let symbols = crate::scope::ScopesStack::new();
+    let rv = tree.visit(&mut call_stack, &symbols);
     call_stack.display();
     return rv;
   }
