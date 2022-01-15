@@ -27,24 +27,25 @@ impl ScopesStack {
   }
 
   pub fn insert(&mut self, s: &'static str, symbol: Symbol) {
-    let len = &self.scopes.len();
-    if *len > 0 {
+    let len = self.scopes.len();
+    if len > 0 {
       self.scopes[len - 1].insert(s, symbol);
     }
   }
 
-  pub fn retrieve(&mut self, s: &'static str, current_scope_only: bool) -> Symbol {
-    let len = &self.scopes.len();
-    for i in (0..*len).rev() {
-      match &self.scopes[i].lookup(s) {
+  pub fn retrieve(&self, s: &'static str, current_scope_only: bool) -> &Symbol {
+    let len = self.scopes.len();
+    for i in (0..len).rev() {
+      let scope = &self.scopes[i];
+      match scope.lookup(s) {
         Symbol::None => (),
-        symbol => return *symbol,
+        symbol => return symbol,
       }
       if current_scope_only {
         break;
       }
     }
-    return Symbol::None;
+    return &Symbol::None;
   }
 
   // pub fn display(&mut self) {
@@ -78,15 +79,15 @@ impl Scope {
     &self.symbol_table.insert(s, symbol);
   }
 
-  pub fn lookup(&mut self, s: &'static str) -> Symbol {
+  pub fn lookup(&self, s: &'static str) -> &Symbol {
     match self.symbol_table.get(s) {
-      None => Symbol::None,
-      Some(s) => *s
+      None => &Symbol::None,
+      Some(s) => s
     }
   }
 
   // pub fn display(&mut self) {
   //   println!("Scope name {}, level {}", self.name, self.level);
-  //   println!("{:?}", &self.symbol_table)
+  //   println!("{:#?}", &self.symbol_table)
   // }
 }

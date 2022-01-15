@@ -75,7 +75,7 @@ impl AstNode for ProcedureDecl {
         param_symbols.push(param_var_symbol);
       } 
     }
-    let proc_block = &self.block;
+    let proc_block = Rc::clone(&self.block_ref);
     let proc_symbol = ProcSymbol::new(proc_name, param_symbols, proc_block);
     let symbol = Symbol::Proc(proc_symbol);
     scope_stack.insert(proc_name, symbol);
@@ -199,7 +199,7 @@ impl AstNode for VarDecl {
       _ => return Err("Cannot declare variable, invalid type name")
     };
     let type_symbol = match scope_stack.retrieve(type_name, false) {
-      Symbol::Builtin(b) => b,
+      Symbol::Builtin(b) => *b,
       _ => return Err("Cannot declare variable, invalid built in type")
     };
     let var_name = match self.var_node.value {
@@ -237,7 +237,7 @@ impl AstNode for Param {
       _ => panic!("Unexpected token.")
     };
     let param_type = match scope_stack.retrieve(param_type_name, false) {
-      Symbol::Builtin(b) => b,
+      Symbol::Builtin(b) => *b,
       _ => panic!("TODO PANIC") 
     };
     let param_name = match (&self.type_node.token.token_type, &self.var_node.value) {
@@ -300,8 +300,8 @@ impl AstNode for ProcCall {
       panic!("Incorrect number of arguments for procedure call, expected {}, got {}", num_params, num_args);
     }
 
-    // assign proc symbol to ProcCall object
-    self.proc_symbol = Some(proc_symbol);
+    // assign proc symbol to ProcCall object /// LET'S NOT DO THAT /// TODO 
+    //self.proc_symbol = Some(proc_symbol);
   }
 }
 

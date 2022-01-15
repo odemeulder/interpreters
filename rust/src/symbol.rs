@@ -5,7 +5,7 @@
 use crate::node_visitor::AstNode;
 use std::fmt;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub struct BuiltinTypeSymbol {
   name: &'static str,
 }
@@ -32,14 +32,17 @@ impl VarSymbol {
   }
 }
 
-pub struct ProcSymbol {
+use std::rc::Rc;
 
+#[derive(Clone)]
+pub struct ProcSymbol {
   name: &'static str,
   pub params: Vec<VarSymbol>,
-  pub block_ast: Box<dyn AstNode>,
+  pub block_ast: Rc<dyn AstNode>,
 }
+
 impl ProcSymbol {
-  pub fn new(s: &'static str, params: Vec<VarSymbol>, block: Box<dyn AstNode>) -> ProcSymbol {
+  pub fn new(s: &'static str, params: Vec<VarSymbol>, block: Rc<dyn AstNode>) -> ProcSymbol {
     ProcSymbol {
       name: s,
       params,
@@ -74,7 +77,7 @@ impl fmt::Display for VarSymbol {
   }
 }
 
-// #[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Symbol {
   None,
   Builtin(BuiltinTypeSymbol),

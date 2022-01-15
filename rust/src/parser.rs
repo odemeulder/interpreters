@@ -9,14 +9,16 @@ use crate::lexer::Token;
 use crate::lexer::TokenType;
 use crate::lexer::TokenValue;
 use crate::node_visitor::AstNode;
+use std::rc::Rc;
 
 pub struct Program {
   pub name: String,
-  pub block: Box<dyn AstNode>,
+  pub block: Box<dyn AstNode>
 }
 
 pub struct ProcedureDecl {
   pub name: &'static str,
+  pub block_ref: Rc<dyn AstNode>,
   pub block: Box<dyn AstNode>,
   pub params: Vec<Box <dyn AstNode>>,
 }
@@ -223,6 +225,16 @@ impl Parser {
     })
   }
 
+  fn block_ref(&mut self) -> Rc<dyn AstNode> {
+    // block : declarations compound_statement
+    let declaration_nodes = self.declarations();
+    let compound_node = self.compound_statement();
+    return Rc::new(Block {
+      compound_statement: compound_node,
+      declarations: declaration_nodes
+    })
+  }
+
   fn declarations(&mut self) -> Vec<Box<dyn AstNode>>  {
     /* declarations : (VAR (variable_declaration SEMI)+)? procedure_declaration*
     */
@@ -273,10 +285,12 @@ impl Parser {
 
     self.eat(TokenType::Semi);
     let block_node = self.block();
+    let block_ref = self.block_ref();
     let proc_decl = Box::new(ProcedureDecl {
       name: proc_name,
       block: block_node,
-      params: params
+      block_ref,
+      params
     });
     declarations.push(proc_decl);
     self.eat(TokenType::Semi);  
