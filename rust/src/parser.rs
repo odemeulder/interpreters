@@ -19,7 +19,7 @@ pub struct Program {
 pub struct ProcedureDecl {
   pub name: &'static str,
   pub block_ref: Rc<dyn AstNode>,
-  pub block: Box<dyn AstNode>,
+  // pub block: Box<dyn AstNode>,
   pub params: Vec<Box <dyn AstNode>>,
 }
 
@@ -107,7 +107,7 @@ impl Parser {
   }
 
   fn eat(&mut self, _token_type: TokenType) -> () {
-    println!("eat token {:#?}", &self.current_token);
+    // println!("eat token {:#?}", &self.current_token);
     if self.current_token.token_type == _token_type {
       self.current_token = self.lexer.get_next_token();
     } else {
@@ -284,11 +284,11 @@ impl Parser {
     }
 
     self.eat(TokenType::Semi);
-    let block_node = self.block();
+    // let block_node = self.block();
     let block_ref = self.block_ref();
     let proc_decl = Box::new(ProcedureDecl {
       name: proc_name,
-      block: block_node,
+      // block: block_node,
       block_ref,
       params
     });

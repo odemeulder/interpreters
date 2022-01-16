@@ -2,7 +2,7 @@
 //               C A L L   S T A C K
 //--------------------------------------------------------------------
 use std::collections::HashMap;
-use crate::lexer::TokenValue;
+use crate::datum::Datum;
 
 pub struct CallStack {
   stack: Vec<StackFrame>
@@ -24,27 +24,18 @@ impl CallStack {
     self.stack.pop()
   }
 
-  // pub fn peek(&mut self) -> Option<StackFrame> {
-  //   let len = self.stack.len();
-  //   if len == 0 {
-  //     return None
-  //   }
-  //   let stack = self.stack[len - 1].clone(); // wrong we should not clone here
-  //   Some(stack)
-  // }
-
-  pub fn get(&mut self, s: &'static str) -> TokenValue {
+  pub fn get(&mut self, s: &'static str) -> Datum {
     let len = self.stack.len();
     if len == 0 {
-      return TokenValue::None
+      return Datum::None
     }
     match self.stack[len - 1].members.get(s) {
-      None => TokenValue::None,
+      None => Datum::None,
       Some(t) => t.clone()
     }
   }
   
-  pub fn insert(&mut self, s: &'static str, t: TokenValue)  {
+  pub fn insert(&mut self, s: &'static str, t: Datum)  {
     let len = self.stack.len();
     if len == 0 {
       return 
@@ -69,13 +60,13 @@ pub struct StackFrame {
   name: &'static str,
   level: u32,
   frame_type: StackFrameType,
-  members: HashMap<&'static str, TokenValue>
+  members: HashMap<&'static str, Datum>
 }
 
 impl StackFrame {
 
   pub fn new(name: &'static str, level: u32, frame_type: StackFrameType) -> Self {
-    let members: HashMap<&'static str, TokenValue> = HashMap::new();
+    let members: HashMap<&'static str, Datum> = HashMap::new();
     StackFrame {
       name,
       level,

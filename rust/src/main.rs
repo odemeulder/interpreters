@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate lazy_static;
-
 use std::fs;
 
 mod lexer;
@@ -10,8 +7,8 @@ mod node_visitor;
 mod interpreter;
 mod semantic_analyzer;
 mod scope;
-mod global_memory;
 mod call_stack;
+mod datum;
 
 //--------------------------------------------------------------------
 //               M A I N
@@ -33,6 +30,5 @@ fn main() {
   let mut interpreter = interpreter::build_interpreter(parser);
   let result = interpreter.interpret();
 
-  global_memory::display();
   println!("Result: {:#?}", result);  
 }

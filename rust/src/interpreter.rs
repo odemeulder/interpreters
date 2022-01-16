@@ -3,7 +3,7 @@
 //--------------------------------------------------------------------
 
 use crate::parser::Parser;
-use crate::lexer::TokenValue;
+use crate::datum::Datum;
 use crate::call_stack::CallStack;
 
 #[derive(Debug)]
@@ -18,7 +18,7 @@ pub fn build_interpreter(parser: Parser) -> Interpreter {
 }
 
 impl Interpreter {
-  pub fn interpret(&mut self) -> TokenValue {
+  pub fn interpret(&mut self) -> Datum {
     let tree = &self.parser.parse();
     let mut call_stack = CallStack::new();
     let symbols = crate::scope::ScopesStack::new();

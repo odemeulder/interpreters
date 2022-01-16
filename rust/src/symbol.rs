@@ -38,7 +38,7 @@ use std::rc::Rc;
 pub struct ProcSymbol {
   name: &'static str,
   pub params: Vec<VarSymbol>,
-  pub block_ast: Rc<dyn AstNode>,
+  pub block_ast: Rc<dyn AstNode>, // This can be removed todo
 }
 
 impl ProcSymbol {
