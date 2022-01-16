@@ -107,7 +107,7 @@ impl Parser {
   }
 
   fn eat(&mut self, _token_type: TokenType) -> () {
-    // println!("eat token {:#?}", &self.current_token);
+    println!("eat token {:#?}", &self.current_token);
     if self.current_token.token_type == _token_type {
       self.current_token = self.lexer.get_next_token();
     } else {

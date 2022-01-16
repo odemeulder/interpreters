@@ -1,6 +1,7 @@
 //--------------------------------------------------------------------
 //               I N T E R P R E T E R
 //--------------------------------------------------------------------
+use std::rc::Rc;
 
 use crate::lexer::TokenValue;
 use crate::lexer::TokenType;
@@ -14,7 +15,7 @@ use crate::call_stack::StackFrame;
 use crate::call_stack::StackFrameType;
 
 pub trait AstNode {
-  fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> TokenValue ;
+  fn visit(&self, _: &mut CallStack, _: &ScopesStack) -> TokenValue { TokenValue::None } 
   fn visit_for_sem_analysis(&mut self, _: &mut ScopesStack) -> () {}
   fn to_var_symbol(&self, _: &mut ScopesStack) -> Result<VarSymbol, &'static str> { Err("To_var_symbol: Undefined operation") }
 }
@@ -60,8 +61,6 @@ impl AstNode for Compound {
     }    
   }
 }
-
-use std::rc::Rc;
 
 impl AstNode for ProcedureDecl {
   fn visit(&self, _: &mut CallStack, _: &ScopesStack) -> TokenValue {
@@ -165,7 +164,7 @@ impl AstNode for Assign {
 }
 
 impl AstNode for Var {
-  fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> TokenValue {
+  fn visit(&self, stack: &mut CallStack, _: &ScopesStack) -> TokenValue {
     let var_name = match self.value {
       TokenValue::String(s) => s,
       _ => panic!("Invalid variable name")
@@ -186,12 +185,7 @@ impl AstNode for Var {
   }
 }
 
-
 impl AstNode for VarDecl {
-
-  fn visit(&self, _: &mut CallStack, symbols: &ScopesStack) -> TokenValue {
-    TokenValue::None  
-  }
 
   fn to_var_symbol(&self, symbols: &mut ScopesStack) -> Result<VarSymbol, &'static str> {
     let type_name = match self.type_node.value {
@@ -226,10 +220,6 @@ impl AstNode for VarDecl {
 }
 
 impl AstNode for Param {
-
-  fn visit(&self, _: &mut CallStack, _: &ScopesStack) -> TokenValue { 
-    return TokenValue::None; // to do
-  }
 
   fn to_var_symbol(&self, symbols: &mut ScopesStack) -> Result<VarSymbol, &'static str> {
     let param_type_name = match (&self.type_node.token.token_type, &self.type_node.token.value) {
@@ -314,15 +304,6 @@ impl AstNode for ProcCall {
   }
 }
 
-impl AstNode for Type {
-  fn visit(&self, _: &mut CallStack, _: &ScopesStack) -> TokenValue {
-    TokenValue::None  
-  }
-}
+impl AstNode for Type { }
 
-
-impl AstNode for NoOp {
-  fn visit(&self, _: &mut CallStack, _: &ScopesStack) -> TokenValue {
-    TokenValue::None 
-  }
-}
+impl AstNode for NoOp { }
