@@ -6,7 +6,7 @@
 use std::rc::Rc;
 use std::fmt;
 use crate::node_visitor::AstNode;
-
+use std::io::Write;
 
 #[derive(Clone, Debug)]
 pub enum Datum {
@@ -17,6 +17,19 @@ pub enum Datum {
   Bool(bool),
   Procedure(ProcedureDatum),
   // Var(VariableDatum),
+}
+
+impl fmt::Display for Datum {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+      match *self {
+        Datum::None => write!(f, "Empty Datum"),
+        Datum::String(s) => write!(f, "{}", s),
+        Datum::Int(i) => write!(f, "{}", i),
+        Datum::Float(float) => write!(f, "float {}", float),
+        Datum::Bool(b) => write!(f, "{}", b),
+        Datum::Procedure(_) => write!(f, "procedure datum")
+      }
+  }
 }
 
 impl Datum {

@@ -432,8 +432,10 @@ impl AstNode for ProcCall {
 }
 
 impl AstNode for WriteStatement {
-  fn visit(&self, _: &mut CallStack) -> Datum { 
-    println!("{}", self.content);
+  fn visit(&self, stack: &mut CallStack) -> Datum { 
+    println!("Visit WriteStatement");
+    let content = self.content.visit(stack);
+    println!("{}", content);
     if self.new_line { println!("") }
     Datum::None
   }

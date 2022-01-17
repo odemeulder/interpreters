@@ -195,11 +195,11 @@ impl fmt::Display for Boolean {
 
 pub struct WriteStatement {
   pub new_line: bool,
-  pub content: String,
+  pub content: Box<dyn AstNode>,
 }
 impl fmt::Display for WriteStatement {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "WriteStatement ({})", self.content)
+    write!(f, "WriteStatement")
   }
 }
 
@@ -377,20 +377,25 @@ impl Parser {
   }
 
   fn declarations(&mut self) -> Vec<Box<dyn AstNode>>  {
-    /* declarations : (VAR (variable_declaration SEMI)+)? procedure_declaration*
+    /* declarations : (VAR (variable_declaration SEMI)+)+ procedure_declaration*
     */
     let mut declarations: Vec<Box<dyn AstNode>> = Vec::new();
-    if self.current_token.token_type == TokenType::Var {
-      self.eat(TokenType::Var);
-      loop {
-        match self.current_token.token_type {
-          TokenType::Id => {
-            let mut var_declarations = self.variable_declaration();
-            declarations.append(&mut var_declarations);
-            self.eat(TokenType::Semi);  
-          },
-          _ => break
-        }
+    loop {
+      match self.current_token.token_type {
+        TokenType::Var => {
+          self.eat(TokenType::Var);
+          loop {
+            match self.current_token.token_type {
+              TokenType::Id => {
+                let mut var_declarations = self.variable_declaration();
+                declarations.append(&mut var_declarations);
+                self.eat(TokenType::Semi);  
+              },
+              _ => break
+            }
+          }
+        },
+        _ => break
       }
     }
     loop {
@@ -636,15 +641,11 @@ impl Parser {
       _ => panic!("Parser error: Token type for write statement should be Write or Writeln")
     };
     self.eat(TokenType::Lparen);
-    let content = match self.current_token.value {
-      TokenValue::String(s) => s,
-      _ => panic!("Parser error: Token value for write statement should be TokenValue::String")
-    };
+    let content = self.expr();
     let rv = Box::new(WriteStatement {
       new_line,
-      content: String::from(content)
+      content
     });
-    self.eat(TokenType::String);
     self.eat(TokenType::Rparen);
     return rv;
   }
