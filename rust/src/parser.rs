@@ -4,16 +4,23 @@
 
 use crate::symbol::ProcSymbol;
 use crate::lexer::Lexer;
-use crate::lexer::build_token; // todox
+use crate::lexer::build_token; 
 use crate::lexer::Token;
 use crate::lexer::TokenType;
 use crate::lexer::TokenValue;
 use crate::node_visitor::AstNode;
 use std::rc::Rc;
+use std::fmt;
+
 
 pub struct Program {
   pub name: String,
   pub block: Box<dyn AstNode>
+}
+impl fmt::Display for Program {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "Program, name {}", self.name)
+  }
 }
 
 pub struct ProcedureDecl {
@@ -22,48 +29,106 @@ pub struct ProcedureDecl {
   // pub block: Box<dyn AstNode>,
   pub params: Vec<Box <dyn AstNode>>,
 }
+impl fmt::Display for ProcedureDecl {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "ProcedureDecl, name {}", self.name)
+  }
+}
 
 pub struct Block {
   pub declarations: Vec<Box<dyn AstNode>>,
   pub compound_statement: Box<dyn AstNode>
 }
+impl fmt::Display for Block {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "Block [")?;
+      // Following code causing stack overflow
+      // for d in &self.declarations { 
+      //   write!(f, "<Declaration {} >,", d)?;
+      // };
+      write!(f, "]")?;
+      Ok(())
+  }
+}
+
 
 pub struct BinOp {
   pub token: Token,
   pub left: Box<dyn AstNode>,
   pub right: Box<dyn AstNode>,
 }
+impl fmt::Display for BinOp {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "BinOp {}", self.token.token_type)
+  }
+}
 
 pub struct Num {
   pub value: TokenValue
+}
+impl fmt::Display for Num {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Num {}", self.value)
+  }
 }
 
 pub struct UnaryOp {
   pub token: Token,
   pub expr: Box<dyn AstNode>,
 }
+impl fmt::Display for UnaryOp {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "UnaryOp {}", self.token.token_type)
+  }
+}
 
 pub struct Compound {
   pub children: Vec<Box<dyn AstNode>>
+}
+impl fmt::Display for Compound {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Compound [")?;
+    for c in &self.children {
+      write!(f, "<Child: {} >, ", c)?
+    }
+    write!(f, "]")?;
+    Ok(())
+  }
 }
 
 pub struct Assign {
   pub left: &'static str,
   pub right: Box<dyn AstNode>,
 }
+impl fmt::Display for Assign {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Assign {}", self.left)
+  }
+}
 
 #[derive(Clone, Debug)]
 pub struct Var {
   pub value: TokenValue
+}
+impl fmt::Display for Var {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Var {}", self.value)
+  }
 }
 
 pub fn build_var(token: Token) -> Var {
   Var { value: token.value }
 }
 
+#[derive(Clone, Debug)]
 pub struct VarDecl {
   pub var_node: Var,
   pub type_node: Type
+}
+impl fmt::Display for VarDecl {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "VarDecl {}", self.var_node)
+  }
 }
 
 #[derive(Clone, Debug)]
@@ -71,21 +136,40 @@ pub struct Type {
   pub token: Token,
   pub value: TokenValue
 }
-
+impl fmt::Display for Type {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Type {}", self.value)
+  }
+}
+#[derive(Clone, Debug)]
 pub struct Param {
   pub var_node: Var,
   pub type_node: Type
 }
-
+impl fmt::Display for Param {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Param {}", self.var_node)
+  }
+}
 pub struct ProcCall {
   pub proc_name: &'static str,
   pub args: Vec<Box<dyn AstNode>>,
   pub token: Token,
   pub proc_symbol: Option<ProcSymbol>
 }
+impl fmt::Display for ProcCall {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "ProcCall {}", &self.proc_name)
+  }
+}
 
+#[derive(Clone, Debug)]
 pub struct NoOp;
-
+impl fmt::Display for NoOp {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "NoOp")
+  }
+}
 // Parser
 #[derive(Debug, Clone)]
 pub struct Parser {

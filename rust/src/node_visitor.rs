@@ -17,16 +17,19 @@ use crate::datum::Datum;
 use crate::datum::VariableDatum;
 use crate::datum::TypeDefDatum;
 use crate::datum::ProcedureDatum;
+use std::fmt;
 
-pub trait AstNode {
+pub trait AstNode: fmt::Display {
   fn visit(&self, _: &mut CallStack, _: &ScopesStack) -> Datum { Datum::None } 
   fn visit_for_sem_analysis(&self, _: &mut ScopesStack) -> () {}
   fn to_var_symbol(&self, _: &mut ScopesStack) -> Result<VarSymbol, &'static str> { Err("To_var_symbol: Undefined operation") }
   fn to_var_datum(&self) -> Result<VariableDatum, &'static str> { Err("to_var_datum: Undefined operation") }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result;// { write!(f, "AST Node") }
 }
 
 impl AstNode for Program {
   fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+    println!("Visit Program");
     let new_frame = StackFrame::new("Global", 0, StackFrameType::Program);
     stack.push(new_frame);
     let ret_val = self.block.visit(stack, symbols);
@@ -39,10 +42,16 @@ impl AstNode for Program {
     self.block.visit_for_sem_analysis(symbols);
     symbols.pop_scope();
   }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Program, name {}", self.name) }
 }
 
 impl AstNode for Block {
   fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+    println!("Visit Block {}", self);
+    for declaration in &self.declarations {
+      declaration.visit(stack, symbols);
+    }
     self.compound_statement.visit(stack, symbols)
   }
   fn visit_for_sem_analysis(&self, symbols: &mut ScopesStack) { 
@@ -51,10 +60,13 @@ impl AstNode for Block {
     }
     self.compound_statement.visit_for_sem_analysis(symbols)
   }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Block") }
 }
 
 impl AstNode for Compound {
   fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+    println!("Visit Compound {}", self);
     for statement in &self.children {
       statement.visit(stack, symbols);
     }
@@ -65,11 +77,14 @@ impl AstNode for Compound {
       statement.visit_for_sem_analysis(symbols);
     }    
   }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Compound") }
 }
 
 impl AstNode for ProcedureDecl {
 
   fn visit(&self, stack: &mut CallStack, _: &ScopesStack) -> Datum {
+    println!("Visit Procedure decl");
     let proc_name = self.name;
     let mut param_symbols: Vec<VariableDatum> = Vec::new();
     for param in &self.params {
@@ -91,8 +106,7 @@ impl AstNode for ProcedureDecl {
         param_symbols.push(param_var_symbol);
       } 
     }
-    let proc_block = Rc::clone(&self.block_ref);
-    let proc_symbol = ProcSymbol::new(proc_name, param_symbols, proc_block);
+    let proc_symbol = ProcSymbol::new(proc_name, param_symbols);
     let symbol = Symbol::Proc(proc_symbol);
     symbols.insert(proc_name, symbol);
     symbols.push_scope(proc_name);
@@ -103,10 +117,13 @@ impl AstNode for ProcedureDecl {
     self.block_ref.visit_for_sem_analysis(symbols);
     symbols.pop_scope();
   }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Procedure Declaration, name {}", self.name) }
 }
 
 impl AstNode for BinOp {
   fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+    println!("Visit BinOp");
     let left = self.left.visit(stack, symbols);
     let right = self.right.visit(stack, symbols);
     return match (left, right) {
@@ -133,10 +150,16 @@ impl AstNode for BinOp {
     self.left.visit_for_sem_analysis(symbols);
     self.right.visit_for_sem_analysis(symbols);
   }
+
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Binary Operation (BinOp), token_type: {}", self.token.token_type) 
+  }
+
 }
 
 impl AstNode for Num {
   fn visit(&self, _: &mut CallStack, _: &ScopesStack) -> Datum {
+    println!("Visit Num");
     return match self.value {
       TokenValue::None => panic!("Invalid node"),
       TokenValue::Int(i) => Datum::Int(i),
@@ -144,10 +167,14 @@ impl AstNode for Num {
       _ => panic!("Invalid node")
     }
   }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Num: {}", self.value) 
+  }
 }
 
 impl AstNode for UnaryOp {
   fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+    println!("Visit UnaryOp");
     match self.expr.visit(stack, symbols) {
       Datum::None => Datum::None,
       Datum::Int(i) => match self.token.token_type {
@@ -166,10 +193,15 @@ impl AstNode for UnaryOp {
   fn visit_for_sem_analysis(&self, symbols: &mut ScopesStack) {
     self.expr.visit_for_sem_analysis(symbols);
   }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Unary Operation (UnOp), token_type: {}", self.token.token_type) 
+  }
+
 }
 
 impl AstNode for Assign {
   fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+    println!("Visit Assign");
     let var_name = &self.left;
     let right = self.right.visit(stack, symbols);
     stack.insert(var_name, right.clone());
@@ -178,10 +210,14 @@ impl AstNode for Assign {
   fn visit_for_sem_analysis(&self, symbols: &mut ScopesStack) { 
     self.right.visit_for_sem_analysis(symbols);
   }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Assign, var_name: {}", self.left) 
+  }
 }
 
 impl AstNode for Var {
   fn visit(&self, stack: &mut CallStack, _: &ScopesStack) -> Datum {
+    println!("Visit Var");
     let var_name = match self.value {
       TokenValue::String(s) => s,
       _ => panic!("Invalid variable name")
@@ -197,7 +233,11 @@ impl AstNode for Var {
     if let Symbol::None = var_symbol {
       panic!("Error: Symbol(identifier) not found {}", var_name)
     }
+  } 
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Var, var_name: {}", self.value) 
   }
+
 }
 
 impl AstNode for VarDecl {
@@ -245,6 +285,11 @@ impl AstNode for VarDecl {
     // insert into symbol table
     symbols.insert(var_name, Symbol::Var(var_symbol));
   }
+
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: VarDecl, var_name: {}", self.var_node.value ) 
+  }
+
 }
 
 impl AstNode for Param {
@@ -285,30 +330,54 @@ impl AstNode for Param {
     let param_name = var_symbol.name;
     symbols.insert(param_name, Symbol::Var(var_symbol));
   }
+
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Param, param: {}", self.var_node.value) 
+  }
+
 }
 
 impl AstNode for ProcCall {
   
   fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum { 
+    println!("Visit ProcCall");
     let proc_name = self.proc_name;
     let new_frame = StackFrame::new(proc_name, 2, StackFrameType::Procedure);
     stack.push(new_frame);
+    stack.display();
 
-    // retrieve the procedure declaration (in the symbols)
-    let proc_symbol: &crate::symbol::ProcSymbol = match symbols.retrieve(proc_name, false) {
-      Symbol::Proc(proc) => proc,
-      _ => panic!("There should be a proc symbol defined for {}", proc_name)
-    };
+    // // retrieve the procedure declaration (in the symbols), note this is wrong, because symbols does not get populated
+    // let proc_symbol: &crate::symbol::ProcSymbol = match symbols.retrieve(proc_name, false) {
+    //   Symbol::Proc(proc) => proc,
+    //   _ => panic!("There should be a proc symbol defined for {}", proc_name)
+    // };
 
-    // match arguments with parameters
+    // // match arguments with parameters
     let args = &self.args;
-    let params = &proc_symbol.params;
-    let mut iter = params.iter().zip(args);
+    // let params = &proc_symbol.params;
+    // let mut iter = params.iter().zip(args);
+    // loop {
+    //   match iter.next() {
+    //     Some((var_symbol, var_node)) => {
+    //       let var_content = var_node.visit(stack, symbols);
+    //       stack.insert(var_symbol.name, var_content)
+    //     },
+    //     None => break
+    //   }
+    // }
+    // stack.display();
+
+    let procedure_datum: ProcedureDatum = match stack.get(proc_name) {
+      Datum::Procedure(proc) => proc,
+      _ => panic!("There should be a procedure datum defined for {}", proc_name)
+    };
+    let params2 = procedure_datum.params;
+    let mut iter2 = params2.iter().zip(args);
     loop {
-      match iter.next() {
-        Some((var_symbol, var_node)) => {
+      match iter2.next() {
+        Some((var_datum, var_node)) => {
           let var_content = var_node.visit(stack, symbols);
-          stack.insert(var_symbol.name, var_content)
+          stack.insert(var_datum.name, var_content)
         },
         None => break
       }
@@ -316,7 +385,8 @@ impl AstNode for ProcCall {
     stack.display();
 
     // execute the call here
-    proc_symbol.block_ast.visit(stack, symbols);
+    // proc_symbol.block_ast.visit(stack, symbols);
+    procedure_datum.block_ast.visit(stack, symbols);
 
     stack.pop();
     
@@ -343,8 +413,23 @@ impl AstNode for ProcCall {
     // assign proc symbol to ProcCall object /// LET'S NOT DO THAT /// TODO 
     //self.proc_symbol = Some(proc_symbol);
   }
+
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Procedure Call, proc_name: {}", self.proc_name) 
+  }
+
 }
 
-impl AstNode for Type { }
+impl AstNode for Type { 
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Type, type: {}", self.value) 
+  }
+}
 
-impl AstNode for NoOp { }
+impl AstNode for NoOp { 
+
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: NoOP") 
+  }
+
+}

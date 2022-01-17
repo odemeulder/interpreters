@@ -11,21 +11,20 @@ use crate::node_visitor::AstNode;
 #[derive(Clone, Debug)]
 pub enum Datum {
   None,
-  String(&'static str),
+  // String(&'static str),
   Int(i32),
   Float(f64),
   Procedure(ProcedureDatum),
-  Var(VariableDatum),
-  Type(TypeDefDatum)
+  // Var(VariableDatum),
 }
 
 impl Datum {
-  pub fn new_type(name: &'static str) -> Self {
-    Datum::Type(TypeDefDatum { name })
-  }
-  pub fn new_variable(name: &'static str, type_def: TypeDefDatum) -> Self {
-    Datum::Var(VariableDatum { name, type_def })
-  }
+  // pub fn new_type(name: &'static str) -> Self {
+  //   Datum::Type(TypeDefDatum { name })
+  // }
+  // pub fn new_variable(name: &'static str, type_def: TypeDefDatum) -> Self {
+  //   Datum::Var(VariableDatum { name, type_def })
+  // }
 }
 
 #[derive(Clone, Debug)]
@@ -39,7 +38,7 @@ impl TypeDefDatum {
 
 #[derive(Clone, Debug)]
 pub struct VariableDatum {
-  name: &'static str,
+  pub name: &'static str,
   type_def: TypeDefDatum
 }
 
@@ -54,7 +53,11 @@ pub struct ProcedureDatum {
   pub params: Vec<VariableDatum>,
   pub block_ast: Rc<dyn AstNode>,
 }
-
+impl fmt::Display for ProcedureDatum {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "<{}:ProcedureDatum> |block: {}|", self.name, self.block_ast)
+  }
+}
 impl ProcedureDatum {
   pub fn new(name: &'static str, params: Vec<VariableDatum>, block_ast: Rc<dyn AstNode> ) -> Self {
     ProcedureDatum {

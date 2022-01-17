@@ -1,5 +1,7 @@
 program Main;
 
+var olivier: integer;
+
 procedure Alpha(a : integer; b : integer);
 var x : integer;
 begin
@@ -9,5 +11,6 @@ end;
 begin { Main }
 
    Alpha(3 + 5, 7);  { procedure call }
+   olivier := 99;
 
 end.  { Main }

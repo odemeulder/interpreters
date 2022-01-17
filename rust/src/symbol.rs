@@ -2,7 +2,6 @@
 //               S Y M B O L S
 //--------------------------------------------------------------------
 
-use crate::node_visitor::AstNode;
 use std::fmt;
 
 #[derive(Clone, Debug, Copy)]
@@ -32,21 +31,17 @@ impl VarSymbol {
   }
 }
 
-use std::rc::Rc;
-
 #[derive(Clone)]
 pub struct ProcSymbol {
   name: &'static str,
   pub params: Vec<VarSymbol>,
-  pub block_ast: Rc<dyn AstNode>, // This can be removed todo
 }
 
 impl ProcSymbol {
-  pub fn new(s: &'static str, params: Vec<VarSymbol>, block: Rc<dyn AstNode>) -> ProcSymbol {
+  pub fn new(s: &'static str, params: Vec<VarSymbol>) -> ProcSymbol {
     ProcSymbol {
       name: s,
       params,
-      block_ast: block
     }
   }
 }
