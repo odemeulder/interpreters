@@ -24,12 +24,12 @@ pub trait AstNode: fmt::Display {
   fn visit_for_sem_analysis(&self, _: &mut ScopesStack) -> () {}
   fn to_var_symbol(&self, _: &mut ScopesStack) -> Result<VarSymbol, &'static str> { Err("To_var_symbol: Undefined operation") }
   fn to_var_datum(&self) -> Result<VariableDatum, &'static str> { Err("to_var_datum: Undefined operation") }
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result;// { write!(f, "AST Node") }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result;
 }
 
 impl AstNode for Program {
   fn visit(&self, stack: &mut CallStack) -> Datum {
-    println!("Visit Program");
+    println!("Visit Program {}", self);
     let new_frame = StackFrame::new("Global", 0, StackFrameType::Program);
     stack.push(new_frame);
     let ret_val = self.block.visit(stack);
@@ -84,7 +84,7 @@ impl AstNode for Compound {
 impl AstNode for ProcedureDecl {
 
   fn visit(&self, stack: &mut CallStack) -> Datum {
-    println!("Visit Procedure decl");
+    println!("Visit Procedure decl {}", self);
     let proc_name = self.name;
     let mut param_symbols: Vec<VariableDatum> = Vec::new();
     for param in &self.params {

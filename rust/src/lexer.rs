@@ -30,7 +30,8 @@ pub enum TokenType {
   RealConst,
   IntegerDiv,
   FloatDiv,
-  Procedure
+  Procedure,
+  String
 }
 
 impl fmt::Display for TokenType {
@@ -198,6 +199,24 @@ impl Lexer {
     };
   }
 
+  fn string(&mut self) -> Token {
+    let mut result = String::default();
+    loop {
+      match self.current_char {
+        Some(c) if c != '\'' => {
+          result.push(c);
+          self.advance();
+        },
+        _ => break,
+      }
+    }
+    self.advance(); // skip the closing '
+    let _result = result.clone();
+    let s_slice: &str = Box::leak(_result.into_boxed_str());
+    build_token(TokenType::String, TokenValue::String(s_slice))
+  }
+
+
   pub fn get_curr_char(&mut self) -> Option<char> {
     self.current_char
   }
@@ -224,6 +243,10 @@ impl Lexer {
             self.advance(); 
             return build_token(TokenType::Colon, TokenValue::String(":"))  
           }
+        },
+        Some(c) if c == '\'' => {
+          self.advance(); // skip the opening '
+          self.string();
         },
         Some(c) if c == '+' => {
           self.advance(); 
