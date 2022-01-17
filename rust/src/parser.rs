@@ -12,6 +12,7 @@ use crate::node_visitor::AstNode;
 use std::rc::Rc;
 use std::fmt;
 
+static LOG_PARSER: bool = false;
 
 pub struct Program {
   pub name: String,
@@ -225,7 +226,9 @@ impl Parser {
   }
 
   fn eat(&mut self, _token_type: TokenType) -> () {
-    // println!("eat token {:#?}", &self.current_token);
+    if LOG_PARSER {
+      println!("eat token {:#?}", &self.current_token);
+    }
     if self.current_token.token_type == _token_type {
       self.current_token = self.lexer.get_next_token();
     } else {
@@ -315,8 +318,40 @@ impl Parser {
   }
 
   fn expr(&mut self) -> Box<dyn AstNode> {
+    self.relation()
+  }
 
-    // Begin
+  fn relation(&mut self) -> Box<dyn AstNode> {
+    /*
+    relation : arithmetic_expr (rel_op arithmetic_expr)?
+    rel_op   : LESS_THAN
+              | GREATER_THAN
+              | EQUAL
+              | LESS_EQUAL
+              | GREATER_EQUAL
+              | NOT_EQUAL
+    */
+    let mut node = self.arithmetic_expr();
+    let _token = self.current_token.clone();
+    match self.current_token.token_type {
+      TokenType::Equal => self.eat(TokenType::Equal),
+      TokenType::NotEqual => self.eat(TokenType::NotEqual),
+      TokenType::GreaterThan => self.eat(TokenType::GreaterThan),
+      TokenType::GreaterEqual => self.eat(TokenType::GreaterEqual),
+      TokenType::LessThan => self.eat(TokenType::LessThan),
+      TokenType::LessEqual => self.eat(TokenType::LessEqual),
+      _ => return node // if no relational operator, then we return the current node
+    }
+    node = Box::new(BinOp {
+      left: node,
+      token: _token,
+      right: self.arithmetic_expr()
+    });
+    return node;
+  }
+
+  fn arithmetic_expr(&mut self) -> Box<dyn AstNode> {
+    /* arithmetic_expr : term ((PLUS | MINUS) term)* */
     let mut node = self.term();
     loop {
       let _token = self.current_token.clone();

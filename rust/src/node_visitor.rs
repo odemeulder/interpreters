@@ -19,6 +19,8 @@ use crate::datum::TypeDefDatum;
 use crate::datum::ProcedureDatum;
 use std::fmt;
 
+static LOG_INTERPRETER: bool = false;
+
 pub trait AstNode: fmt::Display {
   fn visit(&self, _: &mut CallStack) -> Datum { Datum::None } 
   fn visit_for_sem_analysis(&self, _: &mut ScopesStack) -> () {}
@@ -27,9 +29,15 @@ pub trait AstNode: fmt::Display {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result;
 }
 
+fn log(msg: String) {
+  if LOG_INTERPRETER {
+    println!("{}", msg);
+  }
+}
+
 impl AstNode for Program {
   fn visit(&self, stack: &mut CallStack) -> Datum {
-    println!("Visit Program {}", self);
+    log(format!("Visit Program {}", self));
     let new_frame = StackFrame::new("Global", 0, StackFrameType::Program);
     stack.push(new_frame);
     let ret_val = self.block.visit(stack);
@@ -48,7 +56,7 @@ impl AstNode for Program {
 
 impl AstNode for Block {
   fn visit(&self, stack: &mut CallStack) -> Datum {
-    println!("Visit Block {}", self);
+    log(format!("Visit Block {}", self));
     for declaration in &self.declarations {
       declaration.visit(stack);
     }
@@ -66,7 +74,7 @@ impl AstNode for Block {
 
 impl AstNode for Compound {
   fn visit(&self, stack: &mut CallStack) -> Datum {
-    println!("Visit Compound {}", self);
+    log(format!("Visit Compound {}", self));
     for statement in &self.children {
       statement.visit(stack);
     }
@@ -84,7 +92,7 @@ impl AstNode for Compound {
 impl AstNode for ProcedureDecl {
 
   fn visit(&self, stack: &mut CallStack) -> Datum {
-    println!("Visit Procedure decl {}", self);
+    log(format!("Visit Procedure decl {}", self));
     let proc_name = self.name;
     let mut param_symbols: Vec<VariableDatum> = Vec::new();
     for param in &self.params {
@@ -123,23 +131,35 @@ impl AstNode for ProcedureDecl {
 
 impl AstNode for BinOp {
   fn visit(&self, stack: &mut CallStack) -> Datum {
-    println!("Visit BinOp");
+    log(format!("Visit BinOp"));
     let left = self.left.visit(stack);
     let right = self.right.visit(stack);
     return match (left, right) {
       (Datum::Int(l), Datum::Int(r)) => match self.token.token_type {
-                              TokenType::Plus  => Datum::Int(l+r),
-                              TokenType::Minus => Datum::Int(l-r),
-                              TokenType::Mul   => Datum::Int(l*r),
+                              TokenType::Plus         => Datum::Int(l+r),
+                              TokenType::Minus        => Datum::Int(l-r),
+                              TokenType::Mul          => Datum::Int(l*r),
                               TokenType::IntegerDiv   => Datum::Int(l/r), 
-                              TokenType::FloatDiv   => Datum::Float(l as f64 / r as f64), 
+                              TokenType::FloatDiv     => Datum::Float(l as f64 / r as f64), 
+                              TokenType::Equal        => Datum::Bool(l==r),
+                              TokenType::NotEqual     => Datum::Bool(l!=r),
+                              TokenType::GreaterThan  => Datum::Bool(l>r),
+                              TokenType::GreaterEqual => Datum::Bool(l>=r),
+                              TokenType::LessThan     => Datum::Bool(l<r),
+                              TokenType::LessEqual    => Datum::Bool(l<=r),
                               _ => panic!("Unexpected binary operator"),
                             },
       (Datum::Float(l), Datum::Float(r)) => match self.token.token_type {
-                              TokenType::Plus  => Datum::Float(l+r),
-                              TokenType::Minus => Datum::Float(l-r),
-                              TokenType::Mul   => Datum::Float(l*r),
-                              TokenType::FloatDiv   => Datum::Float(l/r), 
+                              TokenType::Plus         => Datum::Float(l+r),
+                              TokenType::Minus        => Datum::Float(l-r),
+                              TokenType::Mul          => Datum::Float(l*r),
+                              TokenType::FloatDiv     => Datum::Float(l/r), 
+                              TokenType::Equal        => Datum::Bool(l==r),
+                              TokenType::NotEqual     => Datum::Bool(l!=r),
+                              TokenType::GreaterThan  => Datum::Bool(l>r),
+                              TokenType::GreaterEqual => Datum::Bool(l>=r),
+                              TokenType::LessThan     => Datum::Bool(l<r),
+                              TokenType::LessEqual    => Datum::Bool(l<=r),
                               _ => panic!("Unexpected binary operator"),
                             },
       (l, r) => panic!("Unexpected token left: {:#?}, right: {:#?}, token_type: {:#?}", l, r, self.token.token_type)
@@ -159,7 +179,7 @@ impl AstNode for BinOp {
 
 impl AstNode for Num {
   fn visit(&self, _: &mut CallStack,) -> Datum {
-    println!("Visit Num");
+    log(format!("Visit Num"));
     return match self.value {
       TokenValue::None => panic!("Interpreter Error: Unexpected Token Value type for Num"),
       TokenValue::Int(i) => Datum::Int(i),
@@ -174,7 +194,7 @@ impl AstNode for Num {
 
 impl AstNode for Strink { 
   fn visit(&self, _: &mut CallStack,) -> Datum {
-    println!("Visit Strink");
+    log(format!("Visit Strink"));
     return match self.value {
       TokenValue::String(s) => Datum::String(s),
       _ => panic!("Interpreter Error: Unexpected Token Value type for Strink")
@@ -201,7 +221,7 @@ impl AstNode for Boolean {
 
 impl AstNode for UnaryOp {
   fn visit(&self, stack: &mut CallStack) -> Datum {
-    println!("Visit UnaryOp");
+    log(format!("Visit UnaryOp"));
     match self.expr.visit(stack) {
       Datum::None => Datum::None,
       Datum::Int(i) => match self.token.token_type {
@@ -228,7 +248,7 @@ impl AstNode for UnaryOp {
 
 impl AstNode for Assign {
   fn visit(&self, stack: &mut CallStack) -> Datum {
-    println!("Visit Assign");
+    log(format!("Visit Assign"));
     let var_name = &self.left;
     let right = self.right.visit(stack);
     stack.insert(var_name, right.clone());
@@ -244,7 +264,7 @@ impl AstNode for Assign {
 
 impl AstNode for Var {
   fn visit(&self, stack: &mut CallStack) -> Datum {
-    println!("Visit Var");
+    log(format!("Visit Var"));
     let var_name = match self.value {
       TokenValue::String(s) => s,
       _ => panic!("Invalid variable name")
@@ -367,7 +387,7 @@ impl AstNode for Param {
 impl AstNode for ProcCall {
   
   fn visit(&self, stack: &mut CallStack) -> Datum { 
-    println!("Visit ProcCall");
+    log(format!("Visit ProcCall"));
     let proc_name = self.proc_name;
     let curr_level = match stack.peek() {
       None => 0,
@@ -420,9 +440,6 @@ impl AstNode for ProcCall {
     if num_args != num_params {
       panic!("Incorrect number of arguments for procedure call, expected {}, got {}", num_params, num_args);
     }
-
-    // assign proc symbol to ProcCall object /// LET'S NOT DO THAT /// TODO 
-    //self.proc_symbol = Some(proc_symbol);
   }
 
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
@@ -433,10 +450,10 @@ impl AstNode for ProcCall {
 
 impl AstNode for WriteStatement {
   fn visit(&self, stack: &mut CallStack) -> Datum { 
-    println!("Visit WriteStatement");
+    log(format!("Visit WriteStatement"));
     let content = self.content.visit(stack);
-    println!("{}", content);
-    if self.new_line { println!("") }
+    print!("{}", content);
+    if self.new_line { println!() }
     Datum::None
   }
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
