@@ -40,6 +40,9 @@ pub enum TokenType {
   LessThan,
   GreaterEqual,
   LessEqual,
+  True,
+  False,
+  Boolean,
 }
 
 impl fmt::Display for TokenType {
@@ -54,6 +57,7 @@ pub enum TokenValue {
   String(&'static str),
   Int(i32),
   Float(f64),
+  Bool(bool)
 }
 
 impl fmt::Display for TokenValue {
@@ -144,7 +148,10 @@ impl Lexer {
       "DIV"       => TokenType::IntegerDiv,
       "PROCEDURE" => TokenType::Procedure,
       "WRITE"     => TokenType::Write,
-      "WRITELN"   => TokenType::Writeln
+      "WRITELN"   => TokenType::Writeln,
+      "TRUE"      => TokenType::True,
+      "FALSE"     => TokenType::False,
+      "BOOLEAN"   => TokenType::Boolean
     ];
     let mut result = String::default();
     loop {

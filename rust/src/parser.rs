@@ -182,6 +182,17 @@ impl fmt::Display for Strink {
   }
 }
 
+#[derive(Clone, Debug)]
+pub struct Boolean {
+  pub token: Token,
+  pub value: TokenValue
+}
+impl fmt::Display for Boolean {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Boolean {}", self.value)
+  }
+}
+
 pub struct WriteStatement {
   pub new_line: bool,
   pub content: String,
@@ -263,6 +274,20 @@ impl Parser {
         return Box::new(Strink {
           token: _token,
           value: __token.value
+        })
+      }
+      TokenType::True => {
+        self.eat(TokenType::True);
+        return Box::new(Boolean {
+          token: _token,
+          value: TokenValue::Bool(true)
+        })
+      }
+      TokenType::False => {
+        self.eat(TokenType::False);
+        return Box::new(Boolean {
+          token: _token,
+          value: TokenValue::Bool(false)
         })
       }
       _ => return self.variable()
@@ -486,11 +511,13 @@ impl Parser {
   fn type_spec(&mut self) -> Type {
     // type_spec : INTEGER
     //           | REAL
+    //           | BOOLEAN
     let _token = self.current_token.clone();
     let _value = self.current_token.clone().value;
     match &self.current_token.token_type {
       TokenType::Integer => self.eat(TokenType::Integer),
       TokenType::Real => self.eat(TokenType::Real),
+      TokenType::Boolean => self.eat(TokenType::Boolean),
       _ => (),
     }
     Type {

@@ -68,6 +68,7 @@ impl Scope {
     let mut map: HashMap<&'static str, Symbol> = HashMap::new();
     map.insert("INTEGER", Symbol::Builtin(BuiltinTypeSymbol::new("INTEGER")));
     map.insert("REAL", Symbol::Builtin(BuiltinTypeSymbol::new("REAL")));
+    map.insert("BOOLEAN", Symbol::Builtin(BuiltinTypeSymbol::new("BOOLEAN")));
     return Scope {
       symbol_table: map,
       level,

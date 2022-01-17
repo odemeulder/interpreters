@@ -14,6 +14,7 @@ pub enum Datum {
   String(&'static str),
   Int(i32),
   Float(f64),
+  Bool(bool),
   Procedure(ProcedureDatum),
   // Var(VariableDatum),
 }

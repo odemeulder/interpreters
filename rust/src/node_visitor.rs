@@ -161,10 +161,10 @@ impl AstNode for Num {
   fn visit(&self, _: &mut CallStack,) -> Datum {
     println!("Visit Num");
     return match self.value {
-      TokenValue::None => panic!("Invalid node"),
+      TokenValue::None => panic!("Interpreter Error: Unexpected Token Value type for Num"),
       TokenValue::Int(i) => Datum::Int(i),
       TokenValue::Float(f) => Datum::Float(f),
-      _ => panic!("Invalid node")
+      _ => panic!("Interpreter Error: Unexpected Token Value type for Num")
     }
   }
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
@@ -177,7 +177,21 @@ impl AstNode for Strink {
     println!("Visit Strink");
     return match self.value {
       TokenValue::String(s) => Datum::String(s),
-      _ => panic!("Invalid node")
+      _ => panic!("Interpreter Error: Unexpected Token Value type for Strink")
+    }
+  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Strink: {}", self.value) 
+  }
+}
+
+impl AstNode for Boolean { 
+  fn visit(&self, _: &mut CallStack,) -> Datum {
+    println!("Visit Boolean");
+    return match self.value {
+      TokenValue::Bool(true) => Datum::Bool(true),
+      TokenValue::Bool(false) => Datum::Bool(false),
+      _ => panic!("Interpreter Error: Unexpected Token Value type for Boolean")
     }
   }
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
