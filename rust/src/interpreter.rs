@@ -21,8 +21,7 @@ impl Interpreter {
   pub fn interpret(&mut self) -> Datum {
     let tree = &self.parser.parse();
     let mut call_stack = CallStack::new();
-    let symbols = crate::scope::ScopesStack::new();
-    let rv = tree.visit(&mut call_stack, &symbols);
+    let rv = tree.visit(&mut call_stack);
     call_stack.display();
     return rv;
   }

@@ -24,6 +24,14 @@ impl CallStack {
     self.stack.pop()
   }
 
+  pub fn peek(&self) -> Option<StackFrame> {
+    let len = self.stack.len();
+    if len == 0 {
+      return None;
+    }
+    return Some(self.stack[len - 1].clone());
+  }
+
   pub fn get(&self, s: &'static str) -> Datum {
     let len = self.stack.len();
     for i in (0..len).rev() {
@@ -59,7 +67,7 @@ impl CallStack {
 #[derive(Clone)]
 pub struct StackFrame {
   name: &'static str,
-  level: u32,
+  pub level: u32,
   frame_type: StackFrameType,
   members: HashMap<&'static str, Datum>
 }

@@ -20,7 +20,7 @@ use crate::datum::ProcedureDatum;
 use std::fmt;
 
 pub trait AstNode: fmt::Display {
-  fn visit(&self, _: &mut CallStack, _: &ScopesStack) -> Datum { Datum::None } 
+  fn visit(&self, _: &mut CallStack) -> Datum { Datum::None } 
   fn visit_for_sem_analysis(&self, _: &mut ScopesStack) -> () {}
   fn to_var_symbol(&self, _: &mut ScopesStack) -> Result<VarSymbol, &'static str> { Err("To_var_symbol: Undefined operation") }
   fn to_var_datum(&self) -> Result<VariableDatum, &'static str> { Err("to_var_datum: Undefined operation") }
@@ -28,11 +28,11 @@ pub trait AstNode: fmt::Display {
 }
 
 impl AstNode for Program {
-  fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+  fn visit(&self, stack: &mut CallStack) -> Datum {
     println!("Visit Program");
     let new_frame = StackFrame::new("Global", 0, StackFrameType::Program);
     stack.push(new_frame);
-    let ret_val = self.block.visit(stack, symbols);
+    let ret_val = self.block.visit(stack);
     stack.display();
     stack.pop();
     return ret_val;
@@ -47,12 +47,12 @@ impl AstNode for Program {
 }
 
 impl AstNode for Block {
-  fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+  fn visit(&self, stack: &mut CallStack) -> Datum {
     println!("Visit Block {}", self);
     for declaration in &self.declarations {
-      declaration.visit(stack, symbols);
+      declaration.visit(stack);
     }
-    self.compound_statement.visit(stack, symbols)
+    self.compound_statement.visit(stack)
   }
   fn visit_for_sem_analysis(&self, symbols: &mut ScopesStack) { 
     for decl in &self.declarations {
@@ -65,10 +65,10 @@ impl AstNode for Block {
 }
 
 impl AstNode for Compound {
-  fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+  fn visit(&self, stack: &mut CallStack) -> Datum {
     println!("Visit Compound {}", self);
     for statement in &self.children {
-      statement.visit(stack, symbols);
+      statement.visit(stack);
     }
     return Datum::None;
   }
@@ -83,7 +83,7 @@ impl AstNode for Compound {
 
 impl AstNode for ProcedureDecl {
 
-  fn visit(&self, stack: &mut CallStack, _: &ScopesStack) -> Datum {
+  fn visit(&self, stack: &mut CallStack) -> Datum {
     println!("Visit Procedure decl");
     let proc_name = self.name;
     let mut param_symbols: Vec<VariableDatum> = Vec::new();
@@ -122,10 +122,10 @@ impl AstNode for ProcedureDecl {
 }
 
 impl AstNode for BinOp {
-  fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+  fn visit(&self, stack: &mut CallStack) -> Datum {
     println!("Visit BinOp");
-    let left = self.left.visit(stack, symbols);
-    let right = self.right.visit(stack, symbols);
+    let left = self.left.visit(stack);
+    let right = self.right.visit(stack);
     return match (left, right) {
       (Datum::Int(l), Datum::Int(r)) => match self.token.token_type {
                               TokenType::Plus  => Datum::Int(l+r),
@@ -158,7 +158,7 @@ impl AstNode for BinOp {
 }
 
 impl AstNode for Num {
-  fn visit(&self, _: &mut CallStack, _: &ScopesStack) -> Datum {
+  fn visit(&self, _: &mut CallStack,) -> Datum {
     println!("Visit Num");
     return match self.value {
       TokenValue::None => panic!("Invalid node"),
@@ -173,9 +173,9 @@ impl AstNode for Num {
 }
 
 impl AstNode for UnaryOp {
-  fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+  fn visit(&self, stack: &mut CallStack) -> Datum {
     println!("Visit UnaryOp");
-    match self.expr.visit(stack, symbols) {
+    match self.expr.visit(stack) {
       Datum::None => Datum::None,
       Datum::Int(i) => match self.token.token_type {
         TokenType::Plus  => Datum::Int(i),
@@ -200,10 +200,10 @@ impl AstNode for UnaryOp {
 }
 
 impl AstNode for Assign {
-  fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum {
+  fn visit(&self, stack: &mut CallStack) -> Datum {
     println!("Visit Assign");
     let var_name = &self.left;
-    let right = self.right.visit(stack, symbols);
+    let right = self.right.visit(stack);
     stack.insert(var_name, right.clone());
     return Datum::None;
   }
@@ -216,7 +216,7 @@ impl AstNode for Assign {
 }
 
 impl AstNode for Var {
-  fn visit(&self, stack: &mut CallStack, _: &ScopesStack) -> Datum {
+  fn visit(&self, stack: &mut CallStack) -> Datum {
     println!("Visit Var");
     let var_name = match self.value {
       TokenValue::String(s) => s,
@@ -339,44 +339,30 @@ impl AstNode for Param {
 
 impl AstNode for ProcCall {
   
-  fn visit(&self, stack: &mut CallStack, symbols: &ScopesStack) -> Datum { 
+  fn visit(&self, stack: &mut CallStack) -> Datum { 
     println!("Visit ProcCall");
     let proc_name = self.proc_name;
-    let new_frame = StackFrame::new(proc_name, 2, StackFrameType::Procedure);
+    let curr_level = match stack.peek() {
+      None => 0,
+      Some(frame) => frame.level
+    };
+    let new_frame = StackFrame::new(proc_name, curr_level + 1, StackFrameType::Procedure);
     stack.push(new_frame);
     stack.display();
 
-    // // retrieve the procedure declaration (in the symbols), note this is wrong, because symbols does not get populated
-    // let proc_symbol: &crate::symbol::ProcSymbol = match symbols.retrieve(proc_name, false) {
-    //   Symbol::Proc(proc) => proc,
-    //   _ => panic!("There should be a proc symbol defined for {}", proc_name)
-    // };
-
-    // // match arguments with parameters
-    let args = &self.args;
-    // let params = &proc_symbol.params;
-    // let mut iter = params.iter().zip(args);
-    // loop {
-    //   match iter.next() {
-    //     Some((var_symbol, var_node)) => {
-    //       let var_content = var_node.visit(stack, symbols);
-    //       stack.insert(var_symbol.name, var_content)
-    //     },
-    //     None => break
-    //   }
-    // }
-    // stack.display();
-
+    // Retrieve procedure declaration from call stack
     let procedure_datum: ProcedureDatum = match stack.get(proc_name) {
       Datum::Procedure(proc) => proc,
       _ => panic!("There should be a procedure datum defined for {}", proc_name)
     };
-    let params2 = procedure_datum.params;
-    let mut iter2 = params2.iter().zip(args);
+    // match arguments with parameters
+    let args = &self.args;
+    let params = procedure_datum.params;
+    let mut iter = params.iter().zip(args);
     loop {
-      match iter2.next() {
+      match iter.next() {
         Some((var_datum, var_node)) => {
-          let var_content = var_node.visit(stack, symbols);
+          let var_content = var_node.visit(stack);
           stack.insert(var_datum.name, var_content)
         },
         None => break
@@ -385,8 +371,7 @@ impl AstNode for ProcCall {
     stack.display();
 
     // execute the call here
-    // proc_symbol.block_ast.visit(stack, symbols);
-    procedure_datum.block_ast.visit(stack, symbols);
+    procedure_datum.block_ast.visit(stack);
 
     stack.pop();
     
