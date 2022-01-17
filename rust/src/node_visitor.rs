@@ -172,6 +172,19 @@ impl AstNode for Num {
   }
 }
 
+impl AstNode for Strink { 
+  fn visit(&self, _: &mut CallStack,) -> Datum {
+    println!("Visit Strink");
+    return match self.value {
+      TokenValue::String(s) => Datum::String(s),
+      _ => panic!("Invalid node")
+    }
+  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Strink: {}", self.value) 
+  }
+}
+
 impl AstNode for UnaryOp {
   fn visit(&self, stack: &mut CallStack) -> Datum {
     println!("Visit UnaryOp");
@@ -348,7 +361,6 @@ impl AstNode for ProcCall {
     };
     let new_frame = StackFrame::new(proc_name, curr_level + 1, StackFrameType::Procedure);
     stack.push(new_frame);
-    stack.display();
 
     // Retrieve procedure declaration from call stack
     let procedure_datum: ProcedureDatum = match stack.get(proc_name) {
@@ -403,6 +415,17 @@ impl AstNode for ProcCall {
     write!(f, "AST Node: Procedure Call, proc_name: {}", self.proc_name) 
   }
 
+}
+
+impl AstNode for WriteStatement {
+  fn visit(&self, _: &mut CallStack) -> Datum { 
+    println!("{}", self.content);
+    if self.new_line { println!("") }
+    Datum::None
+  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: WriteStatement  {}", self.content) 
+  }
 }
 
 impl AstNode for Type { 

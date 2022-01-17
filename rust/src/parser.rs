@@ -170,6 +170,29 @@ impl fmt::Display for NoOp {
     write!(f, "NoOp")
   }
 }
+
+#[derive(Clone, Debug)]
+pub struct Strink {
+  pub token: Token,
+  pub value: TokenValue
+}
+impl fmt::Display for Strink {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Strink {}", self.value)
+  }
+}
+
+pub struct WriteStatement {
+  pub new_line: bool,
+  pub content: String,
+}
+impl fmt::Display for WriteStatement {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "WriteStatement ({})", self.content)
+  }
+}
+
+
 // Parser
 #[derive(Debug, Clone)]
 pub struct Parser {
@@ -205,8 +228,10 @@ impl Parser {
     //        | INTEGER_CONST
     //        | REAL_CONST
     //        | LPAREN expr RPAREN
+    //        | STRING
     //        | variable
     let _token = self.current_token.clone();
+    let __token = self.current_token.clone(); // hacky
     match self.current_token.token_type {
       TokenType::Plus | TokenType::Minus => {
         self.eat(_token.token_type);
@@ -233,6 +258,13 @@ impl Parser {
         self.eat(TokenType::Rparen);
         return node;            
       },
+      TokenType::String => {
+        self.eat(TokenType::String);
+        return Box::new(Strink {
+          token: _token,
+          value: __token.value
+        })
+      }
       _ => return self.variable()
       }
   }
@@ -494,12 +526,14 @@ impl Parser {
 
   fn statement(&mut self) -> Box<dyn AstNode> {
     /* statement :  compound_statement
+                  | write_statement
                   | proc_call_statement
                   | assignment_statement
                   | empty
     */
     match self.current_token.token_type {
       TokenType::Begin => self.compound_statement(),
+      TokenType::Write | TokenType::Writeln => self.write_statement(),
       TokenType::Id if self.lexer.get_curr_char() == Some('(') => self.proccall_statement(), // hacky
       TokenType::Id => self.assignment_statement(),
       _ => self.empty()    
@@ -559,6 +593,33 @@ impl Parser {
       proc_symbol: None
     });
     return return_node;
+  }
+
+  fn write_statement(&mut self) -> Box<dyn AstNode> {
+    /* write_statement : WRITE | WRITELN (LPAREN (expr (SEMI expr)*)? RPAREN)? */
+    let new_line: bool = match self.current_token.token_type {
+      TokenType::Writeln => {
+        self.eat(TokenType::Writeln);
+        true
+      },
+      TokenType::Write => {
+        self.eat(TokenType::Write);
+        false
+      },
+      _ => panic!("Parser error: Token type for write statement should be Write or Writeln")
+    };
+    self.eat(TokenType::Lparen);
+    let content = match self.current_token.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Parser error: Token value for write statement should be TokenValue::String")
+    };
+    let rv = Box::new(WriteStatement {
+      new_line,
+      content: String::from(content)
+    });
+    self.eat(TokenType::String);
+    self.eat(TokenType::Rparen);
+    return rv;
   }
 
   fn empty(&mut self) -> Box<dyn AstNode> {

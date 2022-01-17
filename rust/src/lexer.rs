@@ -31,7 +31,9 @@ pub enum TokenType {
   IntegerDiv,
   FloatDiv,
   Procedure,
-  String
+  String,
+  Write,
+  Writeln,
 }
 
 impl fmt::Display for TokenType {
@@ -134,7 +136,9 @@ impl Lexer {
       "INTEGER"   => TokenType::Integer,
       "REAL"      => TokenType::Real,
       "DIV"       => TokenType::IntegerDiv,
-      "PROCEDURE" => TokenType::Procedure
+      "PROCEDURE" => TokenType::Procedure,
+      "WRITE"     => TokenType::Write,
+      "WRITELN"   => TokenType::Writeln
     ];
     let mut result = String::default();
     loop {
@@ -246,7 +250,7 @@ impl Lexer {
         },
         Some(c) if c == '\'' => {
           self.advance(); // skip the opening '
-          self.string();
+          return self.string();
         },
         Some(c) if c == '+' => {
           self.advance(); 

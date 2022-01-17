@@ -11,7 +11,7 @@ use crate::node_visitor::AstNode;
 #[derive(Clone, Debug)]
 pub enum Datum {
   None,
-  // String(&'static str),
+  String(&'static str),
   Int(i32),
   Float(f64),
   Procedure(ProcedureDatum),
