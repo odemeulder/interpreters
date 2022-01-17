@@ -18,7 +18,7 @@ mod datum;
 fn main() {
 
   println!("ODM Interpreter");
-  let progr = fs::read_to_string("program18.txt").unwrap();
+  let progr = fs::read_to_string("program19.txt").unwrap();
   println!("Program: {:#?}", &progr);
   let lexer = lexer::build_lexer(progr);
   let parser = parser::build_parser(lexer);
