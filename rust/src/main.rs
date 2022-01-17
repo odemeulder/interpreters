@@ -1,14 +1,6 @@
-use std::fs;
-
-mod lexer;
-mod symbol;
-mod parser;
-mod node_visitor;
-mod interpreter;
-mod semantic_analyzer;
-mod scope;
-mod call_stack;
-mod datum;
+// use std::fs;
+use std::env;
+use std::process;
 
 //--------------------------------------------------------------------
 //               M A I N
@@ -17,18 +9,19 @@ mod datum;
 
 fn main() {
 
-  println!("ODM Interpreter");
-  let progr = fs::read_to_string("program19.txt").unwrap();
-  println!("Program: {:#?}", &progr);
-  let lexer = lexer::build_lexer(progr);
-  let parser = parser::build_parser(lexer);
+  let args: Vec<String> = env::args().collect();
 
-  let _parser = parser.clone();
-  let mut sem_analyzer = semantic_analyzer::SemanticAnalyzer::new(_parser);
-  sem_analyzer.analyze();
+  let config = odm_interpreter::Config::new(&args).unwrap_or_else(|err| {
+      println!("Problem parsing arguments: {}", err);
+      process::exit(1);
+  });
 
-  let mut interpreter = interpreter::build_interpreter(parser);
-  let result = interpreter.interpret();
+  println!("Parsing program file {}", config.filename);
 
-  println!("Result: {:#?}", result);  
+  if let Err(e) = odm_interpreter::run(config) {
+      
+      println!("Application error: {}", e);
+
+      process::exit(1);
+  }
 }
