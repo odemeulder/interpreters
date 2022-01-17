@@ -34,6 +34,12 @@ pub enum TokenType {
   String,
   Write,
   Writeln,
+  Equal,
+  NotEqual,
+  GreaterThan,
+  LessThan,
+  GreaterEqual,
+  LessEqual,
 }
 
 impl fmt::Display for TokenType {
@@ -247,6 +253,38 @@ impl Lexer {
             self.advance(); 
             return build_token(TokenType::Colon, TokenValue::String(":"))  
           }
+        },
+        Some(c) if c == '>' => {
+          if let Some('=') = &self.peek() {
+            self.advance(); 
+            self.advance();
+            return build_token(TokenType::GreaterEqual, TokenValue::String(">="))  
+          } else {
+            self.advance(); 
+            return build_token(TokenType::GreaterThan, TokenValue::String(">"))  
+          }
+        },
+        Some(c) if c == '<' => {
+          match &self.peek() {
+            Some('=') => {
+              self.advance();
+              self.advance();
+              return build_token(TokenType::LessEqual, TokenValue::String("<="))  
+            },
+            Some('>') => {
+              self.advance();
+              self.advance();
+              return build_token(TokenType::NotEqual, TokenValue::String("<>"))  
+            },
+            _ => {
+              self.advance();
+              return build_token(TokenType::LessThan, TokenValue::String("<"))  
+            }
+          }
+        }
+        Some(c) if c == '=' => {
+          self.advance(); 
+          return build_token(TokenType::Equal, TokenValue::String("="))
         },
         Some(c) if c == '\'' => {
           self.advance(); // skip the opening '
