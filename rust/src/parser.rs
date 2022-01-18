@@ -2,6 +2,10 @@
 //               P A R S E R
 //--------------------------------------------------------------------
 
+//--------------------------------------------------------------------
+//               N O D E   D E F I N I T I O N S
+//--------------------------------------------------------------------
+
 use crate::symbol::ProcSymbol;
 use crate::lexer::Lexer;
 use crate::lexer::build_token; 
@@ -204,18 +208,35 @@ impl fmt::Display for WriteStatement {
   }
 }
 
+pub struct IfStatement {
+  pub condition: Box<dyn AstNode>,
+  pub consequences: Vec<Box<dyn AstNode>>,
+  pub alternatives: Vec<Box<dyn AstNode>>
+}
+impl fmt::Display for IfStatement {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "IfStatement ({} consequences and {} alternatives", self.consequences.len(), self.alternatives.len())
+  }
+}
 
-// Parser
+
+//--------------------------------------------------------------------
+//               P A R S E R
+//--------------------------------------------------------------------
+
+
 #[derive(Debug, Clone)]
 pub struct Parser {
   pub lexer: Lexer,
-  current_token: Token
+  current_token: Token,
+  next_token: Token,
 }
 
 pub fn build_parser(lexer: Lexer) -> Parser {
   return Parser {
     lexer,
-    current_token: build_token(TokenType::None, TokenValue::None)
+    current_token: build_token(TokenType::None, TokenValue::None),
+    next_token: build_token(TokenType::None, TokenValue::None)
   }
 }
 
@@ -230,10 +251,16 @@ impl Parser {
       println!("eat token {:#?}", &self.current_token);
     }
     if self.current_token.token_type == _token_type {
-      self.current_token = self.lexer.get_next_token();
+      self.current_token = self.get_next_token();
     } else {
       self.error();
     }
+  }
+
+  fn get_next_token(&mut self) -> Token {
+    let current_token = self.next_token.clone();
+    self.next_token = self.lexer.get_next_token();
+    return current_token;
   }
 
   fn factor(&mut self) -> Box<dyn AstNode> {
@@ -372,7 +399,8 @@ impl Parser {
   fn program(&mut self) -> Box<dyn AstNode> {
     // If this is the the initial run, the current_token is None
     if self.current_token.token_type == TokenType::None {
-      self.current_token = self.lexer.get_next_token()
+      self.current_token = self.lexer.get_next_token();
+      self.next_token = self.lexer.get_next_token();
     }
     // program : compound_statement DOT"
     self.eat(TokenType::Program);
@@ -596,11 +624,13 @@ impl Parser {
                   | write_statement
                   | proc_call_statement
                   | assignment_statement
+                  | if_statement
                   | empty
     */
     match self.current_token.token_type {
       TokenType::Begin => self.compound_statement(),
       TokenType::Write | TokenType::Writeln => self.write_statement(),
+      TokenType::If => self.if_statement(),
       TokenType::Id if self.lexer.get_curr_char() == Some('(') => self.proccall_statement(), // hacky
       TokenType::Id => self.assignment_statement(),
       _ => self.empty()    
@@ -683,6 +713,38 @@ impl Parser {
     });
     self.eat(TokenType::Rparen);
     return rv;
+  }
+
+  fn if_statement(&mut self) -> Box<dyn AstNode> {
+    /* if_statement : IF condition THEN statement_list ( else_statement | elsif_statement )? */
+    self.eat(TokenType::If);
+    let condition = self.expr();
+    self.eat(TokenType::Then);
+    let consequences = self.statement_list();
+    let mut alternatives: Vec<Box<dyn AstNode>> = Vec::new();
+    if self.current_token.token_type == TokenType::Else && self.next_token.token_type == TokenType::If {
+      alternatives.push(self.elsif_statement());
+    } else if self.current_token.token_type == TokenType::Else {
+      alternatives.append(&mut self.else_statement());
+    }
+    Box::new(IfStatement {
+      condition,
+      consequences,
+      alternatives,
+    })
+  }
+
+  fn elsif_statement(&mut self) -> Box<dyn AstNode> {
+    /* elsif_statement(&mut self) ELSE IF if_statement */
+    self.eat(TokenType::Else);
+    return self.if_statement();
+  }
+
+  fn else_statement(&mut self) -> Vec<Box<dyn AstNode>> {
+    /* else_statement : ELSE statement_list */
+    self.eat(TokenType::Else);
+    let statements = self.statement_list();
+    return statements;
   }
 
   fn empty(&mut self) -> Box<dyn AstNode> {

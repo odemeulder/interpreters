@@ -4,6 +4,8 @@
 use std::collections::HashMap;
 use crate::datum::Datum;
 
+static LOG_CALL_STACK: bool = false;
+
 pub struct CallStack {
   stack: Vec<StackFrame>
 }
@@ -52,14 +54,16 @@ impl CallStack {
   }
 
   pub fn display(&mut self) {
-    println!("-------------------------");
-    println!("CALL STACK");
-    println!("-------------------------");
-    let len = self.stack.len();
-    for i in 0..len {
-      &self.stack[i].display();
+    if LOG_CALL_STACK {
+      println!("-------------------------");
+      println!("CALL STACK");
+      println!("-------------------------");
+      let len = self.stack.len();
+      for i in 0..len {
+        &self.stack[i].display();
+      }
+      println!("-------------------------");  
     }
-    println!("-------------------------");
   }
 
 }
@@ -92,8 +96,10 @@ impl StackFrame {
   }
 
   pub fn display(&self) {
-    println!("Stack Frame: {} (level {}) {} members", self.name, self.level, self.members.len());
-    println!("{:?}", self.members)
+    if LOG_CALL_STACK {
+      println!("Stack Frame: {} (level {}) {} members", self.name, self.level, self.members.len());
+      println!("{:?}", self.members)  
+    }
   }
 }
 

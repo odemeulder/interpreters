@@ -7,42 +7,50 @@ use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenType {
-  None,
-  Plus,
-  Minus,
-  Mul,
-  Lparen,
-  Rparen,
   Eof,
-  Begin,
-  End,
+  None,
+
   Assign,
-  Semi,
-  Dot,
-  Id,
-  Program,
   Colon,
   Comma,
+  IntegerDiv,
+  Dot,
+  Equal,
+  FloatDiv,
+  GreaterEqual,
+  GreaterThan,
+  LessEqual,
+  LessThan,
+  Lparen,
+  Minus,
+  Mul,
+  NotEqual,
+  Plus,
+  Rparen,
+  Semi,
+  
+  Boolean,
   Integer,
   Real,
-  Var,
-  IntegerConst,
-  RealConst,
-  IntegerDiv,
-  FloatDiv,
-  Procedure,
   String,
+
+  Id,
+  
+  Begin,
+  End,
+  Procedure,
+  Program,
+  Var,
   Write,
   Writeln,
-  Equal,
-  NotEqual,
-  GreaterThan,
-  LessThan,
-  GreaterEqual,
-  LessEqual,
+  If,
+  Else,
+  Then,
+
+  IntegerConst,
+  RealConst,
   True,
   False,
-  Boolean,
 }
 
 impl fmt::Display for TokenType {
@@ -151,7 +159,10 @@ impl Lexer {
       "WRITELN"   => TokenType::Writeln,
       "TRUE"      => TokenType::True,
       "FALSE"     => TokenType::False,
-      "BOOLEAN"   => TokenType::Boolean
+      "BOOLEAN"   => TokenType::Boolean,
+      "IF"        => TokenType::If,
+      "ELSE"      => TokenType::Else,
+      "THEN"      => TokenType::Then
     ];
     let mut result = String::default();
     loop {

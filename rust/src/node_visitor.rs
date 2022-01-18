@@ -461,6 +461,40 @@ impl AstNode for WriteStatement {
   }
 }
 
+impl AstNode for IfStatement {
+
+  fn visit(&self, stack: &mut CallStack) -> Datum {
+    match &self.condition.visit(stack) {
+      Datum::Bool(true) => {
+        for consequence in &self.consequences {
+          consequence.visit(stack);
+        }
+      },
+      Datum::Bool(false) => {
+        for alternative in &self.alternatives {
+          alternative.visit(stack);
+        }
+      },
+      _ => panic!("Interpreter error: Conditional in if statement should return true or false.")
+    }
+    Datum::None
+  }
+
+  fn visit_for_sem_analysis(&self, symbols: &mut ScopesStack) {
+    self.condition.visit_for_sem_analysis(symbols);
+    for consequence in &self.consequences {
+      consequence.visit_for_sem_analysis(symbols);
+    }
+    for alternative in &self.alternatives {
+      alternative.visit_for_sem_analysis(symbols);
+    }
+  }
+
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: IfStatement") 
+  }
+}
+
 impl AstNode for Type { 
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
     write!(f, "AST Node: Type, type: {}", self.value) 
