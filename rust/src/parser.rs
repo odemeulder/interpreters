@@ -210,12 +210,12 @@ impl fmt::Display for WriteStatement {
 
 pub struct IfStatement {
   pub condition: Box<dyn AstNode>,
-  pub consequences: Vec<Box<dyn AstNode>>,
-  pub alternatives: Vec<Box<dyn AstNode>>
+  pub consequence: Box<dyn AstNode>,
+  pub alternative: Box<dyn AstNode>
 }
 impl fmt::Display for IfStatement {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "IfStatement ({} consequences and {} alternatives", self.consequences.len(), self.alternatives.len())
+    write!(f, "IfStatement")
   }
 }
 
@@ -245,6 +245,7 @@ impl Parser {
   fn error(&self) ->() {
     panic!("Error parsing input {:#?}", &self.current_token)
   }
+
 
   fn eat(&mut self, _token_type: TokenType) -> () {
     if LOG_PARSER {
@@ -720,17 +721,19 @@ impl Parser {
     self.eat(TokenType::If);
     let condition = self.expr();
     self.eat(TokenType::Then);
-    let consequences = self.statement_list();
-    let mut alternatives: Vec<Box<dyn AstNode>> = Vec::new();
-    if self.current_token.token_type == TokenType::Else && self.next_token.token_type == TokenType::If {
-      alternatives.push(self.elsif_statement());
-    } else if self.current_token.token_type == TokenType::Else {
-      alternatives.append(&mut self.else_statement());
-    }
+    let consequence = self.statement();
+    let alternative = match (self.current_token.token_type, self.next_token.token_type) {
+      (TokenType::Else, TokenType::If) => self.elsif_statement(),
+      (TokenType::Else, _) => self.else_statement(),
+      (TokenType::Semi, _) => { 
+        return self.empty();
+      }
+      _ => self.empty()
+    };
     Box::new(IfStatement {
       condition,
-      consequences,
-      alternatives,
+      consequence,
+      alternative,
     })
   }
 
@@ -740,11 +743,11 @@ impl Parser {
     return self.if_statement();
   }
 
-  fn else_statement(&mut self) -> Vec<Box<dyn AstNode>> {
+  fn else_statement(&mut self) -> Box<dyn AstNode> {
     /* else_statement : ELSE statement_list */
     self.eat(TokenType::Else);
-    let statements = self.statement_list();
-    return statements;
+    let statement = self.statement();
+    return statement;
   }
 
   fn empty(&mut self) -> Box<dyn AstNode> {

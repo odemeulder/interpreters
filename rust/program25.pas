@@ -1,7 +1,7 @@
 program Main;
     var a, b : integer;
 begin
-    a := 5;
+    a := 12;
     if a = 1 then
       begin
         writeln('this is the if 1...');

@@ -21,5 +21,13 @@
       WriteLn('Nice, I like everything grater than 10')
     else
       WriteLn('Fix it again and dont make me lose my money!'); {this unique semi colon finishes the whole sentence}
-    
+
+    if a < 1 then
+      writeln('a is greater than 1')
+    else
+      writeln('a is not greater than 1'); 
+
+    writeln('last statement'); 
+
+
   end.

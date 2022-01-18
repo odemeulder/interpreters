@@ -46,6 +46,7 @@ pub enum TokenType {
   If,
   Else,
   Then,
+  Function,
 
   IntegerConst,
   RealConst,
@@ -162,7 +163,8 @@ impl Lexer {
       "BOOLEAN"   => TokenType::Boolean,
       "IF"        => TokenType::If,
       "ELSE"      => TokenType::Else,
-      "THEN"      => TokenType::Then
+      "THEN"      => TokenType::Then,
+      "FUNCTION"  => TokenType::Function
     ];
     let mut result = String::default();
     loop {
