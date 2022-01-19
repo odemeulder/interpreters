@@ -246,11 +246,6 @@ impl Lexer {
     build_token(TokenType::String, TokenValue::String(s_slice))
   }
 
-
-  pub fn get_curr_char(&mut self) -> Option<char> {
-    self.current_char
-  }
-
   pub fn get_next_token(&mut self) -> Token {
     loop {
       match self.current_char {

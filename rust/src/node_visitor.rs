@@ -9,6 +9,7 @@ use crate::parser::*;
 use crate::symbol::Symbol;
 use crate::symbol::VarSymbol;
 use crate::symbol::ProcSymbol;
+use crate::symbol::FuncSymbol;
 use crate::scope::ScopesStack;
 use crate::call_stack::CallStack;
 use crate::call_stack::StackFrame;
@@ -17,9 +18,11 @@ use crate::datum::Datum;
 use crate::datum::VariableDatum;
 use crate::datum::TypeDefDatum;
 use crate::datum::ProcedureDatum;
+use crate::datum::FunctionDatum;
 use std::fmt;
 
 static LOG_INTERPRETER: bool = false;
+static LOG_SEMANTIC_ANALYZER: bool = false;
 
 pub trait AstNode: fmt::Display {
   fn visit(&self, _: &mut CallStack) -> Datum { Datum::None } 
@@ -48,6 +51,9 @@ impl AstNode for Program {
   fn visit_for_sem_analysis(&self, symbols: &mut ScopesStack) {
     symbols.push_scope("global");
     self.block.visit_for_sem_analysis(symbols);
+    if LOG_SEMANTIC_ANALYZER { 
+      symbols.display()
+    };
     symbols.pop_scope();
   }
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
@@ -128,6 +134,47 @@ impl AstNode for ProcedureDecl {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
     write!(f, "AST Node: Procedure Declaration, name {}", self.name) }
 }
+
+impl AstNode for FunctionDecl { 
+
+  fn visit(&self, stack: &mut CallStack) -> Datum {
+    log(format!("Visit Function decl {}", self));
+    let func_name = self.name;
+    let mut param_symbols: Vec<VariableDatum> = Vec::new();
+    for param in &self.params {
+      if let Ok(param_var_symbol) = param.to_var_datum() {
+        param_symbols.push(param_var_symbol);
+      } 
+    }
+    let proc_block = Rc::clone(&self.block_ref);
+    let function_datum = FunctionDatum::new(func_name, param_symbols, proc_block);
+    stack.insert(func_name, Datum::Function(function_datum));
+    return Datum::None;
+  }
+  
+  fn visit_for_sem_analysis(&self, symbols: &mut ScopesStack) { 
+    let func_name = self.name;
+    let mut param_symbols: Vec<VarSymbol> = Vec::new();
+    for param in &self.params {
+      if let Ok(param_var_symbol) = param.to_var_symbol(symbols) {
+        param_symbols.push(param_var_symbol);
+      } 
+    }
+    let func_symbol = FuncSymbol::new(func_name, param_symbols);
+    let symbol = Symbol::Func(func_symbol);
+    symbols.insert(func_name, symbol);
+    symbols.push_scope(func_name);
+
+    for param in &self.params {
+      param.visit_for_sem_analysis(symbols);
+    }
+    self.block_ref.visit_for_sem_analysis(symbols);
+    symbols.pop_scope();
+  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Function Declaration, name {}", self.name) }
+}
+
 
 impl AstNode for BinOp {
   fn visit(&self, stack: &mut CallStack) -> Datum {
@@ -424,7 +471,6 @@ impl AstNode for ProcCall {
     Datum::None
   }
 
-
   fn visit_for_sem_analysis(&self, symbols: &mut ScopesStack) { 
     for arg in &self.args {
       arg.visit_for_sem_analysis(symbols);
@@ -447,6 +493,74 @@ impl AstNode for ProcCall {
   }
 
 }
+
+impl AstNode for FuncCall {
+  
+  fn visit(&self, stack: &mut CallStack) -> Datum { 
+    log(format!("Visit FuncCall"));
+    let func_name = self.func_name;
+    let curr_level = match stack.peek() {
+      None => 0,
+      Some(frame) => frame.level
+    };
+    let new_frame = StackFrame::new(func_name, curr_level + 1, StackFrameType::Procedure);
+    stack.push(new_frame);
+
+    // Retrieve function declaration from call stack
+    let function_datum: FunctionDatum = match stack.get(func_name) {
+      Datum::Function(f) => f,
+      _ => panic!("There should be a function datum defined for {}", func_name)
+    };
+    // match arguments with parameters
+    let args = &self.args;
+    let params = function_datum.params;
+    let mut iter = params.iter().zip(args);
+    loop {
+      match iter.next() {
+        Some((var_datum, var_node)) => {
+          let var_content = var_node.visit(stack);
+          stack.insert(var_datum.name, var_content)
+        },
+        None => break
+      }
+    }
+    stack.display();
+
+    // execute the call here
+    function_datum.block_ast.visit(stack);
+
+    // Retrieve a variable from call stack with the same name as the function
+    // This will return Datum::None if nothing found, which is ok.
+    let ret_val: Datum = stack.get(func_name);
+
+    stack.pop();
+    
+    return ret_val;
+  }
+
+  fn visit_for_sem_analysis(&self, symbols: &mut ScopesStack) { 
+    for arg in &self.args {
+      arg.visit_for_sem_analysis(symbols);
+    }
+    // code to verify that number of args = number of params .
+    let func_name = self.func_name;
+    let proc_symbol = match symbols.retrieve(func_name, false) {
+      Symbol::Func(proc) => proc,
+      _ => panic!("There should be a func symbol defined for {}", func_name)
+    };
+    let num_args = self.args.len();
+    let num_params = proc_symbol.params.len();
+    if num_args != num_params {
+      panic!("Incorrect number of arguments for function call, expected {}, got {}", num_params, num_args);
+    }
+  }
+
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { 
+    write!(f, "AST Node: Function Call, func_name: {}", self.func_name) 
+  }
+
+}
+
 
 impl AstNode for WriteStatement {
   fn visit(&self, stack: &mut CallStack) -> Datum { 

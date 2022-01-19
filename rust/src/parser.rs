@@ -31,12 +31,23 @@ impl fmt::Display for Program {
 pub struct ProcedureDecl {
   pub name: &'static str,
   pub block_ref: Rc<dyn AstNode>,
-  // pub block: Box<dyn AstNode>,
   pub params: Vec<Box <dyn AstNode>>,
 }
 impl fmt::Display for ProcedureDecl {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       write!(f, "ProcedureDecl, name {}", self.name)
+  }
+}
+
+pub struct FunctionDecl {
+  pub name: &'static str,
+  pub block_ref: Rc<dyn AstNode>,
+  pub params: Vec<Box <dyn AstNode>>,
+  pub type_def: Type
+}
+impl fmt::Display for FunctionDecl {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "FunctionDecl, name {}", self.name)
   }
 }
 
@@ -168,6 +179,17 @@ impl fmt::Display for ProcCall {
   }
 }
 
+pub struct FuncCall {
+  pub func_name: &'static str,
+  pub args: Vec<Box<dyn AstNode>>,
+  pub token: Token,
+}
+impl fmt::Display for FuncCall {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "FuncCall {}", &self.func_name)
+  }
+}
+
 #[derive(Clone, Debug)]
 pub struct NoOp;
 impl fmt::Display for NoOp {
@@ -272,6 +294,7 @@ impl Parser {
     //        | LPAREN expr RPAREN
     //        | STRING
     //        | variable
+    //        | function_call_statement
     let _token = self.current_token.clone();
     let __token = self.current_token.clone(); // hacky
     match self.current_token.token_type {
@@ -321,6 +344,7 @@ impl Parser {
           value: TokenValue::Bool(false)
         })
       }
+      TokenType::Id if self.next_token.token_type == TokenType::Lparen => return self.function_call_statement(),
       _ => return self.variable()
       }
   }
@@ -441,7 +465,7 @@ impl Parser {
   }
 
   fn declarations(&mut self) -> Vec<Box<dyn AstNode>>  {
-    /* declarations : (VAR (variable_declaration SEMI)+)+ procedure_declaration*
+    /* declarations : (VAR (variable_declaration SEMI)+)+ procedure_declaration* function_declaration*
     */
     let mut declarations: Vec<Box<dyn AstNode>> = Vec::new();
     loop {
@@ -471,6 +495,15 @@ impl Parser {
         _ => break
       }
     }
+    loop {
+      match self.current_token.token_type {
+        TokenType::Function => {
+          let mut function_declarations = self.function_declarations();
+          declarations.append(&mut function_declarations);
+        },
+        _ => break
+      }
+    }
     return declarations
   }
 
@@ -494,15 +527,46 @@ impl Parser {
     }
 
     self.eat(TokenType::Semi);
-    // let block_node = self.block();
     let block_ref = self.block_ref();
     let proc_decl = Box::new(ProcedureDecl {
       name: proc_name,
-      // block: block_node,
       block_ref,
       params
     });
     declarations.push(proc_decl);
+    self.eat(TokenType::Semi);  
+    return declarations;
+  }
+
+  fn function_declarations(&mut self) -> Vec<Box<dyn AstNode>> {
+    /* procedure_declaration :
+         PROCEDURE ID (LPAREN formal_parameter_list RPAREN)? COLON type SEMI SEMI block SEMI
+    */
+    let mut declarations: Vec<Box<dyn AstNode>> = Vec::new();
+    self.eat(TokenType::Function);
+    let proc_name = match self.current_token.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Unexpected token type after procedure declaration.")
+    };
+    self.eat(TokenType::Id);
+
+    let mut params: Vec<Box<dyn AstNode>> = Vec::new();
+    if self.current_token.token_type == TokenType::Lparen {
+      self.eat(TokenType::Lparen);
+      params = self.formal_parameter_list();
+      self.eat(TokenType::Rparen);
+    }
+    self.eat(TokenType::Colon);
+    let type_def = self.type_spec();
+    self.eat(TokenType::Semi);
+    let block_ref = self.block_ref();
+    let fun_decl = Box::new(FunctionDecl {
+      name: proc_name,
+      block_ref,
+      params,
+      type_def
+    });
+    declarations.push(fun_decl);
     self.eat(TokenType::Semi);  
     return declarations;
   }
@@ -628,13 +692,13 @@ impl Parser {
                   | if_statement
                   | empty
     */
-    match self.current_token.token_type {
-      TokenType::Begin => self.compound_statement(),
-      TokenType::Write | TokenType::Writeln => self.write_statement(),
-      TokenType::If => self.if_statement(),
-      TokenType::Id if self.lexer.get_curr_char() == Some('(') => self.proccall_statement(), // hacky
-      TokenType::Id => self.assignment_statement(),
-      _ => self.empty()    
+    match (self.current_token.token_type, self.next_token.token_type) {
+      (TokenType::Begin, _)                      => self.compound_statement(),
+      (TokenType::Write | TokenType::Writeln, _) => self.write_statement(),
+      (TokenType::If, _)                         => self.if_statement(),
+      (TokenType::Id, TokenType::Lparen)         => self.proccall_statement(), 
+      (TokenType::Id, _)                         => self.assignment_statement(),
+      (_,_)                                      => self.empty()    
     }
   }
 
@@ -692,6 +756,37 @@ impl Parser {
     });
     return return_node;
   }
+
+  fn function_call_statement(&mut self) -> Box<dyn AstNode> {
+    /* function_call_statement : ID LPAREN (expr (COMMA expr)*)? RPAREN */
+    let func_name = match self.current_token.value {
+      TokenValue::String(s) => s,
+      _ => panic!("Parser error: Token type error for func call")
+    };
+    self.eat(TokenType::Id);
+    self.eat(TokenType::Lparen);
+    let mut args: Vec<Box<dyn AstNode>> = Vec::new();
+    loop {
+      match self.current_token.token_type {
+        TokenType::Rparen => { 
+          self.eat(TokenType::Rparen);
+          break; 
+        }
+        TokenType::Comma => { self.eat(TokenType::Comma); }
+        _ => {
+          let node = self.expr();
+          args.push(node);
+        }
+      }
+    }
+    let return_node = Box::new(FuncCall {
+      func_name,
+      args,
+      token: self.current_token.clone(),
+    });
+    return return_node;
+  }
+
 
   fn write_statement(&mut self) -> Box<dyn AstNode> {
     /* write_statement : WRITE | WRITELN (LPAREN (expr (SEMI expr)*)? RPAREN)? */

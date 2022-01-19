@@ -36,10 +36,23 @@ pub struct ProcSymbol {
   name: &'static str,
   pub params: Vec<VarSymbol>,
 }
-
 impl ProcSymbol {
   pub fn new(s: &'static str, params: Vec<VarSymbol>) -> ProcSymbol {
     ProcSymbol {
+      name: s,
+      params,
+    }
+  }
+}
+
+#[derive(Clone)]
+pub struct FuncSymbol {
+  name: &'static str,
+  pub params: Vec<VarSymbol>,
+}
+impl FuncSymbol {
+  pub fn new(s: &'static str, params: Vec<VarSymbol>) -> FuncSymbol {
+    FuncSymbol {
       name: s,
       params,
     }
@@ -54,9 +67,10 @@ impl NamedSymbol for Symbol {
   fn get_name(&mut self) -> &'static str {
     match &self {
       Symbol::Builtin(b) => b.name,
-      Symbol::Var(v) => v.name,
-      Symbol::Proc(p) => p.name,
-      Symbol::None => "NONE"
+      Symbol::Var(v)     => v.name,
+      Symbol::Proc(p)    => p.name,
+      Symbol::Func(f)    => f.name,
+      Symbol::None       => "NONE"
     }
   }
 }
@@ -77,5 +91,6 @@ pub enum Symbol {
   None,
   Builtin(BuiltinTypeSymbol),
   Var(VarSymbol),
-  Proc(ProcSymbol)
+  Proc(ProcSymbol),
+  Func(FuncSymbol)
 }

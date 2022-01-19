@@ -6,7 +6,6 @@
 use std::rc::Rc;
 use std::fmt;
 use crate::node_visitor::AstNode;
-use std::io::Write;
 
 #[derive(Clone, Debug)]
 pub enum Datum {
@@ -16,6 +15,7 @@ pub enum Datum {
   Float(f64),
   Bool(bool),
   Procedure(ProcedureDatum),
+  Function(FunctionDatum),
   // Var(VariableDatum),
 }
 
@@ -27,7 +27,8 @@ impl fmt::Display for Datum {
         Datum::Int(i) => write!(f, "{}", i),
         Datum::Float(float) => write!(f, "float {}", float),
         Datum::Bool(b) => write!(f, "{}", b),
-        Datum::Procedure(_) => write!(f, "procedure datum")
+        Datum::Procedure(_) => write!(f, "procedure datum"),
+        Datum::Function(_) => write!(f, "function datum")
       }
   }
 }
@@ -81,8 +82,34 @@ impl ProcedureDatum {
     }
   }
 }
-
 impl fmt::Debug for ProcedureDatum {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "<{}:Procedure>", self.name)
+  }
+}
+
+
+#[derive(Clone)]
+pub struct FunctionDatum {
+  name: &'static str,
+  pub params: Vec<VariableDatum>,
+  pub block_ast: Rc<dyn AstNode>,
+}
+impl fmt::Display for FunctionDatum {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "<{}:FunctionDatum> |block: {}|", self.name, self.block_ast)
+  }
+}
+impl FunctionDatum {
+  pub fn new(name: &'static str, params: Vec<VariableDatum>, block_ast: Rc<dyn AstNode> ) -> Self {
+    FunctionDatum {
+      name,
+      params,
+      block_ast
+    }
+  }
+}
+impl fmt::Debug for FunctionDatum {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       write!(f, "<{}:Procedure>", self.name)
   }

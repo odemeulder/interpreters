@@ -48,11 +48,12 @@ impl ScopesStack {
     return &Symbol::None;
   }
 
-  // pub fn display(&mut self) {
-  //   for i in 0..self.scopes.len() {
-  //     &self.scopes[i].display();
-  //   }
-  // }
+  pub fn display(&mut self) {
+    let len = self.scopes.len();
+    for i in 0..len {
+      &self.scopes[i].display();
+    }
+  }
 
 }
 
@@ -87,8 +88,7 @@ impl Scope {
     }
   }
 
-  // pub fn display(&mut self) {
-  //   println!("Scope name {}, level {}", self.name, self.level);
-  //   println!("{:#?}", &self.symbol_table)
-  // }
+  pub fn display(&mut self) {
+    println!("Scope name {}, level {}", self.name, self.level);
+  }
 }
